@@ -115,6 +115,18 @@ public static class ProfileSave
         return false;
     }
 
+    public static void CompleteLevel(int levelIndex)
+    {
+        EnsureSeeded();
+        var slot = Active;
+        if (slot == null || !slot.occupied)
+            return;
+
+        if (levelIndex == slot.level)
+            slot.level = Mathf.Min(12, slot.level + 1);
+        Write();
+    }
+
     public static bool TrySelect(int index, out string message)
     {
         EnsureSeeded();

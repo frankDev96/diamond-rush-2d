@@ -8,6 +8,7 @@ public class MenuMusicPlayer : MonoBehaviour
     [SerializeField] AudioClip track;
 
     AudioSource source;
+    bool pausedForGameplay;
 
     void Awake()
     {
@@ -43,6 +44,7 @@ public class MenuMusicPlayer : MonoBehaviour
         if (source == null)
             source = GetComponent<AudioSource>();
 
+        pausedForGameplay = false;
         if (source.clip != clip)
         {
             source.clip = clip;
@@ -53,10 +55,32 @@ public class MenuMusicPlayer : MonoBehaviour
         Refresh();
     }
 
+    public void PauseForGameplay()
+    {
+        pausedForGameplay = true;
+        if (source == null)
+            source = GetComponent<AudioSource>();
+        if (source != null && source.isPlaying)
+            source.Pause();
+    }
+
+    public void ResumeFromGameplay()
+    {
+        pausedForGameplay = false;
+        Refresh();
+    }
+
     public void Refresh()
     {
         if (source == null || source.clip == null)
             return;
+
+        if (pausedForGameplay)
+        {
+            if (source.isPlaying)
+                source.Pause();
+            return;
+        }
 
         if (GameSettings.SoundOn)
         {

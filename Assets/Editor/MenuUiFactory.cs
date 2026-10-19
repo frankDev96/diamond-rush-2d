@@ -13,6 +13,8 @@ public static class MenuUiFactory
     public const string MapArtFolder = "Assets/Art/Map/";
     public const string MusicPath = "Assets/Audio/The_Gilded_Labyrinth.wav";
     public const string AngkorMusicPath = "Assets/Audio/ankor-wat-bgm.wav";
+    public const string LevelEntryMusicPath = "Assets/Audio/Ankorwat-level entry-music.wav";
+    public const string SfxFolder = "Assets/Audio/Sfx/";
 
     public static readonly Color Ink = new Color(0.27f, 0.16f, 0.08f, 1f);
     public static readonly Color Title = new Color(1f, 0.97f, 0.9f, 1f);
@@ -350,6 +352,7 @@ public static class MenuUiFactory
         {
             "Assets/Scenes/Home.unity",
             "Assets/Scenes/WorldSelect.unity",
+            "Assets/Scenes/GameplayLevel1.unity",
             "Assets/Scenes/SampleScene.unity"
         };
         var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>();

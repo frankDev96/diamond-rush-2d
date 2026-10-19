@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #111; }
+  #stage { position: relative; overflow: hidden; background: #0d170d; transform-origin: 0 0; }
+  #stage img, #stage div { position: absolute; }
+  .label { color: #fff7e6; font: bold 26px sans-serif; text-shadow: 0 0 3px #2e1708, 0 0 3px #2e1708; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const A = '/Assets/Art/Gameplay/Angkor/', MAP = '/Assets/Art/Map/';
+const rows = [
+  "#######EE#######",
+  "#.....#..#.....#",
+  "#.ddd.#..#.ddd.#",
+  "#.drd......drd.#",
+  "#.ddd.dddd.ddd.#",
+  "#.....drdd.....#",
+  "#..#..dddd..#..#",
+  "#.......P......#",
+  "################"];
+const params = new URLSearchParams(location.search);
+const W = +(params.get('w') || 1920), H = +(params.get('h') || 1080);
+const stage = document.getElementById('stage');
+stage.style.width = W + 'px'; stage.style.height = H + 'px';
+stage.style.transform = `scale(${window.innerWidth / W})`;
+
+const ui = Math.pow(2, (Math.log2(W / 1920) + Math.log2(H / 1080)) / 2);
+const left = 250 * ui, right = 260 * ui, top = 150 * ui, bottom = 40 * ui;
+const gw = rows[0].length, gh = rows.length;
+const availW = W - left - right, availH = H - top - bottom;
+const ppu = Math.min(availW / gw, availH / gh);
+const cx = left + availW / 2, cy = top + availH / 2;
+const x0 = cx - gw * ppu / 2, y0 = cy - gh * ppu / 2;
+
+function img(src, x, y, w, h, z, extra) {
+  const e = document.createElement('img');
+  e.src = src; e.style.left = x + 'px'; e.style.top = y + 'px';
+  e.style.width = w + 'px'; if (h) e.style.height = h + 'px';
+  e.style.zIndex = z; if (extra) Object.assign(e.style, extra);
+  stage.appendChild(e); return e;
+}
+function box(x, y, w, h, z, style) {
+  const e = document.createElement('div');
+  Object.assign(e.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px', zIndex: z }, style);
+  stage.appendChild(e); return e;
+}
+function text(t, x, y, size, color, z, align) {
+  const e = document.createElement('div'); e.className = 'label'; e.textContent = t;
+  Object.assign(e.style, { left: x + 'px', top: y + 'px', fontSize: size + 'px', color: color || '#fff7e6', zIndex: z });
+  if (align === 'right') e.style.transform = 'translateX(-100%)';
+  if (align === 'center') e.style.transform = 'translate(-50%,-50%)';
+  stage.appendChild(e); return e;
+}
+
+// background cover
+const bgW = 1920, bgH = 1080, bgScale = Math.max(W / bgW, H / bgH) * 1.02;
+img(A + 'jungle_border_16x9.png', W / 2 - bgW * bgScale / 2, H / 2 - bgH * bgScale / 2, bgW * bgScale, bgH * bgScale, 0);
+
+const exits = [];
+for (let r = 0; r < gh; r++) for (let c = 0; c < gw; c++) {
+  const ch = rows[r][c], x = x0 + c * ppu, y = y0 + r * ppu, s = ppu * 1.01;
+  const hash = ((c * 73856093) ^ ((gh - 1 - r) * 19349663)) >>> 0;
+  if (ch === '#') {
+    img(A + 'wall_block.png', x, y, s, s, 30);
+    const below = rows[r + 1] && rows[r + 1][c];
+    if (below && below !== '#') box(x, y + ppu, ppu, ppu * 0.24, 10, { background: 'rgba(0,0,0,0.28)' });
+    continue;
+  }
+  img(A + ((hash & 1) ? 'floor_stone_alt.png' : 'floor_stone.png'), x, y, s, s, 1, (hash & 2) ? { transform: 'scaleX(-1)' } : null);
+  if (ch === 'd') img(A + 'dirt_soft.png', x, y, s, s, 20, (hash & 4) ? { transform: 'scaleX(-1)' } : null);
+  if (ch === 'r') {
+    const g = 0.7 * ppu, gl = g * 1.6;
+    box(x + ppu / 2 - gl / 2, y + ppu / 2 - gl / 2, gl, gl, 60, { background: 'radial-gradient(circle, rgba(255,64,77,0.35) 0%, rgba(255,64,77,0) 70%)' });
+    img(A + 'red_diamond.png', x + ppu / 2 - g / 2, y + ppu / 2 - g * 119 / 128 / 2, g, null, 70);
+  }
+  if (ch === 'E') exits.push([x, y]);
+  if (ch === 'P') {
+    const h = 2 * 0.52 * ppu, w = h * 135 / 256;
+    box(x + ppu / 2 - 0.31 * ppu, y + ppu / 2 + 0.36 * ppu - 0.1 * ppu, 0.62 * ppu, 0.2 * ppu, 90, { background: 'radial-gradient(ellipse, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 70%)' });
+    img(A + 'explorer_up.png', x + ppu / 2 - w / 2, y + ppu / 2 - 0.12 * ppu - h / 2, w, h, 100);
+  }
+}
+if (exits.length) {
+  const ex = (exits[0][0] + exits[exits.length - 1][0]) / 2 + ppu / 2;
+  const dw = 2.1 * ppu, dh = dw * 384 / 375, bottomY = exits[0][1] + ppu;
+  img(A + 'exit_door_closed.png', ex - dw / 2, bottomY - dh, dw, dh, 40);
+  const sw = dw * 0.14, sy = bottomY - dh * 0.66;
+  for (let i = 0; i < 3; i++) {
+    const sx = ex + (i - 1) * dw * 0.2;
+    img(A + 'red_diamond.png', sx - sw / 2, sy - sw * 119 / 128 / 2, sw, null, 50, { filter: i === 0 ? 'none' : 'brightness(0.18)', opacity: 0.95 });
+  }
+}
+
+// HUD in reference units (scaled by ui)
+const u = v => v * ui;
+box(u(24), u(16), u(680), u(104), 200, { borderStyle: 'solid', borderWidth: u(14) + 'px', borderImage: `url(${MAP}hud_chip.png) 14 fill stretch`, boxSizing: 'border-box', opacity: 0.94 });
+text('WORLD 1: ANGKOR WAT - LEVEL 1', u(56), u(28), u(20), '#fff7e6', 201);
+text('THE GATES', u(56), u(60), u(36), '#ffe68c', 201);
+const chips = [['icon_red.png', '1/3', 1], ['icon_red.png', '0', 0.55], ['icon_purple.png', '0', 1], ['icon_lives_head.png', 'x3', 1]];
+const offs = [-570, -380, -190, 0];
+chips.forEach(([icon, v, a], i) => {
+  const rx = W - u(24) + u(offs[i]), x = rx - u(172), y = u(18) + u(4);
+  img(MAP + 'hud_chip.png', x, y, u(172), u(60), 200);
+  img(A + icon, x + u(34) - u(28), y + u(2), u(56), u(56), 201, { objectFit: 'contain', opacity: a });
+  text(v, rx - u(14), y + u(14), u(26), '#fff7e6', 202, 'right');
+});
+img(A + 'btn_pause.png', W - u(24) - u(104), u(100), u(104), u(104), 200, { objectFit: 'contain' });
+img(A + 'btn_inventory.png', W - u(40) - u(150), H - u(40) - u(150), u(150), u(150), 200, { objectFit: 'contain' });
+img(A + 'btn_restart.png', W - u(60) - u(112), H - u(210) - u(112), u(112), u(112), 200, { objectFit: 'contain' });
+img(A + 'joystick_base.png', u(140) - u(110), H - u(190) - u(110), u(220), u(220), 200, { objectFit: 'contain', opacity: 0.45 });
+img(A + 'joystick_knob.png', u(140) - u(52), H - u(190) - u(52), u(104), u(104), 201, { objectFit: 'contain', opacity: 0.45 });
+text('DRAG JOYSTICK', u(140), H - u(62), u(18), '#ffe68c', 202, 'center');
+text('TO MOVE!', u(140), H - u(40), u(18), '#ffe68c', 202, 'center');
+const hint = box(W / 2 - u(240), H - u(84) - u(38), u(480), u(76), 210, { background: 'rgba(20,15,10,0.82)' });
+text('Move to Dig!', W / 2, H - u(84), u(40), '#ffe68c', 211, 'center');
+</script>
+</body>
+</html>
