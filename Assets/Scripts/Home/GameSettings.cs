@@ -27,6 +27,8 @@ public static class GameSettings
     public static void Apply()
     {
         AudioListener.volume = SoundOn ? 1f : 0f;
+        if (MenuMusicPlayer.Instance != null)
+            MenuMusicPlayer.Instance.Refresh();
     }
 
     public static void TriggerVibrate()

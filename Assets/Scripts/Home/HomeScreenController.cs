@@ -1,11 +1,13 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class HomeScreenController : MonoBehaviour
 {
     [SerializeField] TMP_Text continueSubtitle;
+    [SerializeField] GameObject settingsPanel;
     [SerializeField] Image soundOnImage;
     [SerializeField] Image soundOffImage;
     [SerializeField] Image vibrateOnImage;
@@ -14,30 +16,21 @@ public class HomeScreenController : MonoBehaviour
     [SerializeField] TMP_Text soundOffLabel;
     [SerializeField] TMP_Text vibrateOnLabel;
     [SerializeField] TMP_Text vibrateOffLabel;
-    [SerializeField] GameObject loadPanel;
-    [SerializeField] TMP_Text[] slotLabels;
-    [SerializeField] Image[] slotImages;
     [SerializeField] GameObject toastRoot;
     [SerializeField] TMP_Text toastLabel;
-    [SerializeField] RectTransform focusRing;
-    [SerializeField] RectTransform settingsBlock;
-    [SerializeField] RectTransform helpBlock;
     [SerializeField] Sprite pillOn;
     [SerializeField] Sprite pillOff;
 
     Coroutine toastRoutine;
-    Coroutine focusRoutine;
 
     void Awake()
     {
         ProfileSave.EnsureSeeded();
         GameSettings.Apply();
-        if (loadPanel != null)
-            loadPanel.SetActive(false);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
         if (toastRoot != null)
             toastRoot.SetActive(false);
-        if (focusRing != null)
-            focusRing.gameObject.SetActive(false);
         Refresh();
     }
 
@@ -46,52 +39,35 @@ public class HomeScreenController : MonoBehaviour
         var slot = ProfileSave.Active;
         if (slot == null || !slot.occupied)
         {
-            ShowToast("No save to continue. Start a new profile.");
+            ShowToast("No save to continue. Start a new game.");
             return;
         }
 
-        ShowToast("Continuing " + slot.Subtitle);
+        SceneManager.LoadScene(GameScenes.WorldSelect);
     }
 
     public void OnNewGame()
     {
-        ProfileSave.TryNewGame(out var message);
-        Refresh();
-        ShowToast(message);
-    }
-
-    public void OnLoadGame()
-    {
-        if (loadPanel == null)
+        if (!ProfileSave.TryNewGame(out var message))
+        {
+            ShowToast(message);
             return;
+        }
 
         Refresh();
-        loadPanel.SetActive(true);
-    }
-
-    public void CloseLoad()
-    {
-        if (loadPanel != null)
-            loadPanel.SetActive(false);
-    }
-
-    public void SelectSlot(int index)
-    {
-        var selected = ProfileSave.TrySelect(index, out var message);
-        Refresh();
-        if (selected)
-            CloseLoad();
-        ShowToast(message);
+        SceneManager.LoadScene(GameScenes.WorldSelect);
     }
 
     public void OnSettings()
     {
-        Focus(settingsBlock);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(true);
     }
 
-    public void OnHelp()
+    public void CloseSettings()
     {
-        Focus(helpBlock);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
     }
 
     public void SetSound(bool on)
@@ -115,23 +91,6 @@ public class HomeScreenController : MonoBehaviour
         PaintPill(soundOffImage, soundOffLabel, !GameSettings.SoundOn);
         PaintPill(vibrateOnImage, vibrateOnLabel, GameSettings.VibrateOn);
         PaintPill(vibrateOffImage, vibrateOffLabel, !GameSettings.VibrateOn);
-
-        if (slotLabels == null)
-            return;
-
-        for (var i = 0; i < slotLabels.Length; i++)
-        {
-            var slot = ProfileSave.Get(i);
-            if (slotLabels[i] != null)
-            {
-                slotLabels[i].text = slot.occupied
-                    ? slot.profileName + "\n" + slot.locationName + " Level " + slot.level
-                    : "Empty";
-            }
-
-            if (slotImages != null && i < slotImages.Length && slotImages[i] != null)
-                slotImages[i].color = slot.occupied ? Color.white : new Color(1f, 1f, 1f, 0.45f);
-        }
     }
 
     void PaintPill(Image image, TMP_Text label, bool selected)
@@ -159,39 +118,5 @@ public class HomeScreenController : MonoBehaviour
         yield return new WaitForSecondsRealtime(2.2f);
         if (toastRoot != null)
             toastRoot.SetActive(false);
-    }
-
-    void Focus(RectTransform target)
-    {
-        if (focusRing == null || target == null)
-            return;
-
-        focusRing.gameObject.SetActive(true);
-        focusRing.position = target.position;
-        focusRing.sizeDelta = target.rect.size + new Vector2(24f, 24f);
-        if (focusRoutine != null)
-            StopCoroutine(focusRoutine);
-        focusRoutine = StartCoroutine(PulseFocus());
-    }
-
-    IEnumerator PulseFocus()
-    {
-        var image = focusRing.GetComponent<Image>();
-        var elapsed = 0f;
-        while (elapsed < 1.5f)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            if (image != null)
-            {
-                var color = image.color;
-                color.a = 0.45f + Mathf.PingPong(elapsed * 3f, 0.55f);
-                image.color = color;
-            }
-
-            yield return null;
-        }
-
-        if (focusRing != null)
-            focusRing.gameObject.SetActive(false);
     }
 }
