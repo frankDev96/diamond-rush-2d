@@ -10,7 +10,9 @@ using UnityEngine.UI;
 public static class MenuUiFactory
 {
     public const string ArtFolder = "Assets/Art/Home/";
+    public const string MapArtFolder = "Assets/Art/Map/";
     public const string MusicPath = "Assets/Audio/The_Gilded_Labyrinth.wav";
+    public const string AngkorMusicPath = "Assets/Audio/ankor-wat-bgm.wav";
 
     public static readonly Color Ink = new Color(0.27f, 0.16f, 0.08f, 1f);
     public static readonly Color Title = new Color(1f, 0.97f, 0.9f, 1f);
@@ -119,7 +121,8 @@ public static class MenuUiFactory
 
     public static MenuMusicPlayer CreateMenuMusic()
     {
-        ConfigureMusicClip();
+        ConfigureMusicClip(MusicPath);
+        ConfigureMusicClip(AngkorMusicPath);
         var go = new GameObject("MenuMusic");
         var source = go.AddComponent<AudioSource>();
         source.playOnAwake = false;
@@ -132,9 +135,9 @@ public static class MenuUiFactory
         return player;
     }
 
-    public static void ConfigureMusicClip()
+    public static void ConfigureMusicClip(string path = MusicPath)
     {
-        var importer = AssetImporter.GetAtPath(MusicPath) as AudioImporter;
+        var importer = AssetImporter.GetAtPath(path) as AudioImporter;
         if (importer == null)
             return;
 
@@ -229,12 +232,12 @@ public static class MenuUiFactory
         return toast;
     }
 
-    public static GameObject CreateSprite(string name, Transform parent, string file, bool preserveAspect)
+    public static GameObject CreateSprite(string name, Transform parent, string file, bool preserveAspect, string folder = ArtFolder)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         go.transform.SetParent(parent, false);
         var image = go.GetComponent<Image>();
-        image.sprite = SpriteAt(file);
+        image.sprite = SpriteAt(file, folder);
         image.preserveAspect = preserveAspect;
         image.color = Color.white;
         return go;
@@ -270,9 +273,9 @@ public static class MenuUiFactory
         label.outlineColor = OutlineColor;
     }
 
-    public static Sprite SpriteAt(string file)
+    public static Sprite SpriteAt(string file, string folder = ArtFolder)
     {
-        var path = ArtFolder + file;
+        var path = folder + file;
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null)
         {

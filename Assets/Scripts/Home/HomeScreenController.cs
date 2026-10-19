@@ -20,12 +20,15 @@ public class HomeScreenController : MonoBehaviour
     [SerializeField] TMP_Text toastLabel;
     [SerializeField] Sprite pillOn;
     [SerializeField] Sprite pillOff;
+    [SerializeField] AudioClip menuMusic;
 
     Coroutine toastRoutine;
 
     void Awake()
     {
         ProfileSave.EnsureSeeded();
+        if (MenuMusicPlayer.Instance != null && menuMusic != null)
+            MenuMusicPlayer.Instance.PlayClip(menuMusic);
         GameSettings.Apply();
         if (settingsPanel != null)
             settingsPanel.SetActive(false);

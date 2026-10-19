@@ -40,12 +40,13 @@ Read and follow this skill before changing any player-facing UI, scene layout, m
 - Right stack only: Continue (with last-save subtitle), New Game, Settings.
 - Settings opens a dim + stone-board **modal** with Sound ON/OFF and Vibrate ON/OFF. Close on dim tap or Close.
 
-## World Select layout
+## World Select / level map layout
 
-- Same 16:9 canvas and music.
-- Back returns to Home.
-- One row of world cards. Angkor Wat unlocked. Others locked.
-- Tapping a locked world or an unfinished world shows a toast, not a new desktop panel.
+- Same 16:9 canvas. Back top-left, HUD top-right, world list left, parchment map right.
+- Worlds: Angkor Wat unlocked; Bavaria, Tibet, Giza, Thiruvithamkoor locked. Locked taps toast "World locked."
+- Angkor map: 12 stage nodes. Cleared / current / locked from the active profile level. PLAY is the only primary action.
+- PLAY and locked nodes toast until a digging level exists.
+- Play `ankor-wat-bgm.wav` while this screen is open. Restore `The_Gilded_Labyrinth.wav` on Home. One `MenuMusicPlayer` only.
 
 ## Rebuild
 

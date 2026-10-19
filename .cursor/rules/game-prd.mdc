@@ -1,0 +1,16 @@
+---
+description: Diamond Rush game PRD. Apply on any major gameplay, level, economy, HUD, world, or menu change.
+alwaysApply: true
+---
+
+# Game PRD
+
+Before any major gameplay, level, economy, HUD, world, or menu change, read [`docs/GAME_PRD.md`](docs/GAME_PRD.md) and do not contradict it.
+
+## Conflict order
+
+1. `docs/GAME_PRD.md` wins on product, worlds, mechanics, campaign, and World Select information architecture.
+2. The mobile-ui skill wins on canvas, hit targets, and Home compactness.
+3. Do not invent mechanics, rename worlds, or skip the World 1 teaching order.
+
+Do not duplicate the PRD here. Open the file.

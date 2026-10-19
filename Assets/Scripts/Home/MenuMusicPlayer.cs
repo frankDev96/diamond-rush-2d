@@ -23,7 +23,8 @@ public class MenuMusicPlayer : MonoBehaviour
         source.playOnAwake = false;
         source.loop = true;
         source.spatialBlend = 0f;
-        source.clip = track;
+        if (track != null)
+            source.clip = track;
         GameSettings.Apply();
         Refresh();
     }
@@ -32,6 +33,24 @@ public class MenuMusicPlayer : MonoBehaviour
     {
         if (Instance == this)
             Instance = null;
+    }
+
+    public void PlayClip(AudioClip clip)
+    {
+        if (clip == null)
+            return;
+
+        if (source == null)
+            source = GetComponent<AudioSource>();
+
+        if (source.clip != clip)
+        {
+            source.clip = clip;
+            if (GameSettings.SoundOn)
+                source.Play();
+        }
+
+        Refresh();
     }
 
     public void Refresh()

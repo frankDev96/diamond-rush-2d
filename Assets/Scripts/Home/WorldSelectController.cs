@@ -2,19 +2,56 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class WorldSelectController : MonoBehaviour
 {
+    static readonly string[] LevelNames =
+    {
+        "THE GATES",
+        "THE COURTYARD",
+        "THE JUNGLE",
+        "THE RUINS",
+        "THE RIVER",
+        "THE MARKET",
+        "THE TOMB",
+        "THE SPIRE",
+        "THE GROTTO",
+        "THE BRIDGE",
+        "THE SANCTUM",
+        "THE INNER COURT"
+    };
+
+    [SerializeField] AudioClip angkorMusic;
+    [SerializeField] Image[] worldImages;
+    [SerializeField] Sprite worldActive;
+    [SerializeField] Sprite worldLocked;
+    [SerializeField] Image[] nodeImages;
+    [SerializeField] TMP_Text[] nodeLabels;
+    [SerializeField] TMP_Text[] nodeNotes;
+    [SerializeField] Sprite nodeCleared;
+    [SerializeField] Sprite nodeCurrent;
+    [SerializeField] Sprite nodeLocked;
+    [SerializeField] TMP_Text previewTitle;
+    [SerializeField] TMP_Text previewTarget;
+    [SerializeField] TMP_Text previewReward;
+    [SerializeField] TMP_Text gemLabel;
     [SerializeField] GameObject toastRoot;
     [SerializeField] TMP_Text toastLabel;
 
+    int selectedLevel = 2;
     Coroutine toastRoutine;
 
     void Awake()
     {
+        ProfileSave.EnsureSeeded();
         GameSettings.Apply();
+        if (MenuMusicPlayer.Instance != null && angkorMusic != null)
+            MenuMusicPlayer.Instance.PlayClip(angkorMusic);
         if (toastRoot != null)
             toastRoot.SetActive(false);
+        selectedLevel = Mathf.Clamp(ProfileSave.Active != null ? ProfileSave.Active.level : 1, 1, 12);
+        Refresh();
     }
 
     public void OnBack()
@@ -24,13 +61,99 @@ public class WorldSelectController : MonoBehaviour
 
     public void SelectWorld(int index)
     {
-        if (index == 0)
+        if (index != 0)
         {
-            ShowToast("Angkor Wat is coming soon.");
+            ShowToast("World locked.");
             return;
         }
 
-        ShowToast("World locked.");
+        Refresh();
+    }
+
+    public void SelectLevel(int level)
+    {
+        var current = CurrentLevel();
+        if (level > current)
+        {
+            ShowToast("Level locked.");
+            return;
+        }
+
+        selectedLevel = level;
+        RefreshPreview();
+    }
+
+    public void OnPlay()
+    {
+        ShowToast("Level " + selectedLevel + " is coming soon.");
+    }
+
+    void Refresh()
+    {
+        if (worldImages != null)
+        {
+            for (var i = 0; i < worldImages.Length; i++)
+            {
+                if (worldImages[i] == null)
+                    continue;
+                worldImages[i].sprite = i == 0 ? worldActive : worldLocked;
+            }
+        }
+
+        var current = CurrentLevel();
+        if (nodeImages != null)
+        {
+            for (var i = 0; i < nodeImages.Length; i++)
+            {
+                var level = i + 1;
+                if (nodeImages[i] != null)
+                {
+                    if (level < current)
+                        nodeImages[i].sprite = nodeCleared;
+                    else if (level == current)
+                        nodeImages[i].sprite = nodeCurrent;
+                    else
+                        nodeImages[i].sprite = nodeLocked;
+                }
+
+                if (nodeLabels != null && i < nodeLabels.Length && nodeLabels[i] != null)
+                    nodeLabels[i].text = "LEVEL\n" + level;
+
+                if (nodeNotes != null && i < nodeNotes.Length && nodeNotes[i] != null)
+                {
+                    if (level < current)
+                        nodeNotes[i].text = "CLEARED\n3/3";
+                    else if (level == current)
+                        nodeNotes[i].text = "NEW";
+                    else
+                        nodeNotes[i].text = string.Empty;
+                }
+            }
+        }
+
+        if (gemLabel != null)
+            gemLabel.text = "18";
+
+        RefreshPreview();
+    }
+
+    void RefreshPreview()
+    {
+        var name = LevelNames[Mathf.Clamp(selectedLevel - 1, 0, LevelNames.Length - 1)];
+        if (previewTitle != null)
+            previewTitle.text = "LEVEL " + selectedLevel + ": \"" + name + "\"";
+        if (previewTarget != null)
+            previewTarget.text = "Target:  4";
+        if (previewReward != null)
+            previewReward.text = "Rewards:  18";
+    }
+
+    int CurrentLevel()
+    {
+        var slot = ProfileSave.Active;
+        if (slot == null || !slot.occupied)
+            return 1;
+        return Mathf.Clamp(slot.level, 1, 12);
     }
 
     void ShowToast(string message)

@@ -11,7 +11,7 @@ public static class HomeScreenBuilder
 {
     const string ScenePath = "Assets/Scenes/Home.unity";
     const string LayoutPref = "DiamondRush.HomeLayoutVersion";
-    const int LayoutVersion = 3;
+    const int LayoutVersion = 4;
 
     static HomeScreenBuilder()
     {
@@ -136,6 +136,7 @@ public static class HomeScreenBuilder
         MenuUiFactory.SetRef(so, "toastLabel", toastLabel);
         MenuUiFactory.SetRef(so, "pillOn", MenuUiFactory.SpriteAt("pill_on.png"));
         MenuUiFactory.SetRef(so, "pillOff", MenuUiFactory.SpriteAt("pill_off.png"));
+        MenuUiFactory.SetRef(so, "menuMusic", AssetDatabase.LoadAssetAtPath<AudioClip>(MenuUiFactory.MusicPath));
         so.ApplyModifiedPropertiesWithoutUndo();
 
         UnityEventTools.AddPersistentListener(continueButton.onClick, controller.OnContinue);
