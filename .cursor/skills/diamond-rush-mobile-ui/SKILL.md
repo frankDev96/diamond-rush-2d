@@ -1,6 +1,6 @@
 ---
 name: diamond-rush-mobile-ui
-description: Apply Diamond Rush mobile-first game UI/UX on every screen, layout, HUD, modal, and menu change. Use when editing Home, World Select, canvases, buttons, settings, art placement, or any player-facing UI in this Unity project.
+description: Apply Diamond Rush mobile-first game UI/UX and the gameplay production pipeline (generated art, sprite sheets, level layouts, builders, compile check, browser preview screenshots). Use when editing Home, World Select, gameplay levels, HUD, canvases, buttons, modals, settings, camera, art assets, or any player-facing screen in this Unity project.
 ---
 
 # Diamond Rush mobile UI
@@ -48,6 +48,21 @@ Read and follow this skill before changing any player-facing UI, scene layout, m
 - PLAY and locked nodes toast until a digging level exists.
 - Play `ankor-wat-bgm.wav` while this screen is open. Restore `The_Gilded_Labyrinth.wav` on Home. One `MenuMusicPlayer` only.
 
+## Gameplay screen layout
+
+- Same 16:9 canvas. Banner top-left, counter chips top-right, Pause under the chips, Restart and Inventory bottom-right, floating joystick bottom-left (touch zone covers the left 40%).
+- The world stays inside the HUD safe margins (ref px: top 150, bottom 40, left 250, right 260). The follow camera shows about 13x7 cells with the player at the safe-area centre.
+- Screen overlays (vignette, arrows, hints) never take touches (`raycastTarget = false`) and never cover the joystick or buttons.
+- One hint per level from the PRD (Level 1: "Move to Dig!"). Required and extra reds are shown separately (`2/3`, `1/2`).
+
+## Gameplay pipeline
+
+For new levels, gameplay art, sprite sheets, the camera, builders, or verification, read [gameplay-pipeline.md](gameplay-pipeline.md) and follow its checklist. Scripts:
+
+- `scripts/compile_check.sh`: Roslyn compile of runtime and editor scripts while Unity stays open.
+- `scripts/serve_preview.mjs`: serves the repo for `ArtSource/Gameplay/preview.html`.
+- `scripts/decode_cdp_screenshot.mjs`: turns a saved CDP screenshot into a PNG.
+
 ## Rebuild
 
-After UI hierarchy changes, rebuild with **Diamond Rush → Build Home Screen** and **Diamond Rush → Build World Select Screen**. Do not hand-edit huge `.unity` YAML when a builder exists.
+After UI hierarchy changes, rebuild with **Diamond Rush → Build Home Screen**, **Diamond Rush → Build World Select Screen** or **Diamond Rush → Build Angkor Level 1 Gameplay** (run **Process Gameplay Art** first when art changed). Bump the builder's `LayoutVersion` so the auto-build picks it up. Do not hand-edit huge `.unity` YAML when a builder exists.
