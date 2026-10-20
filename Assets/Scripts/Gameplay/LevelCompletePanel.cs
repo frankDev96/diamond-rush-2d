@@ -9,6 +9,7 @@ public class LevelCompletePanel : MonoBehaviour
     [SerializeField] CanvasGroup group;
     [SerializeField] TMP_Text stageLabel;
     [SerializeField] TMP_Text redsValue;
+    [SerializeField] TMP_Text extraValue;
     [SerializeField] Button continueButton;
     [SerializeField] Button replayButton;
 
@@ -22,12 +23,14 @@ public class LevelCompletePanel : MonoBehaviour
             root.SetActive(false);
     }
 
-    public void Show(string stageName, int reds, int redsRequired)
+    public void Show(string stageName, int required, int requiredTotal, int extra, int extraTotal)
     {
         if (stageLabel != null)
             stageLabel.text = stageName;
         if (redsValue != null)
-            redsValue.text = reds + " / " + redsRequired;
+            redsValue.text = required + " / " + requiredTotal;
+        if (extraValue != null)
+            extraValue.text = "EXTRA REDS " + extra + " / " + extraTotal;
 
         root.SetActive(true);
         root.transform.SetAsLastSibling();

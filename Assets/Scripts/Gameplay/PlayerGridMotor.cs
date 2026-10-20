@@ -11,13 +11,24 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] Sprite downSprite;
     [SerializeField] Sprite upSprite;
     [SerializeField] Sprite sideSprite;
+    [SerializeField] Sprite[] walkDown;
+    [SerializeField] Sprite[] walkUp;
+    [SerializeField] Sprite[] walkSide;
+    [SerializeField] float walkFps = 10f;
+    [SerializeField] float idleReturnDelay = 0.12f;
+    [SerializeField] int idleFrame = 1;
+    [SerializeField] float squashAmount = 0.04f;
     [SerializeField] float stepDuration = 0.17f;
     [SerializeField] float bumpCooldown = 0.35f;
     [SerializeField] float deadZone = 0.3f;
 
     Vector2Int gridPos;
+    Vector2Int facing = Vector2Int.up;
     bool stepping;
     bool exiting;
+    bool walking;
+    float walkPhase;
+    float lastStepEndTime = -10f;
     float lastBumpTime = -10f;
     Vector3 visualBasePosition;
     Vector3 visualBaseScale;
@@ -32,7 +43,8 @@ public class PlayerGridMotor : MonoBehaviour
             visualBaseScale = visual.localScale;
         }
 
-        var shadow = GameplaySprites.Spawn("Shadow", transform, GameplaySprites.SoftCircle, transform.position + Vector3.down * 0.36f, 0.62f, 9);
+        var feet = transform.position + Vector3.up * (visualBasePosition.y + 0.03f);
+        var shadow = GameplaySprites.Spawn("Shadow", transform, GameplaySprites.SoftCircle, feet, 0.62f, 9);
         shadow.transform.localScale = new Vector3(shadow.transform.localScale.x, shadow.transform.localScale.x * 0.32f, 1f);
         shadow.color = new Color(0f, 0f, 0f, 0.45f);
     }
@@ -43,12 +55,17 @@ public class PlayerGridMotor : MonoBehaviour
         gridPos = spawn;
         transform.position = board.CellToWorld(spawn.x, spawn.y);
         Face(Vector2Int.up);
+        ShowIdlePose();
     }
 
     void Update()
     {
         if (!stepping && !exiting)
+        {
+            if (walking && Time.time - lastStepEndTime >= idleReturnDelay)
+                ShowIdlePose();
             AnimateIdle();
+        }
 
         var session = GameplaySessionController.Instance;
         if (board == null || stepping || exiting || session == null || !session.AcceptsInput)
@@ -88,6 +105,8 @@ public class PlayerGridMotor : MonoBehaviour
         var target = gridPos + direction;
         if (board.IsBlocked(target.x, target.y))
         {
+            if (!walking)
+                ShowIdlePose();
             if (Time.time - lastBumpTime >= bumpCooldown)
             {
                 lastBumpTime = Time.time;
@@ -103,6 +122,12 @@ public class PlayerGridMotor : MonoBehaviour
     IEnumerator StepTo(Vector2Int target, GridCell entering, GameplaySessionController session)
     {
         stepping = true;
+        if (!walking)
+        {
+            walking = true;
+            walkPhase = 0f;
+        }
+
         var from = transform.position;
         var to = board.CellToWorld(target.x, target.y);
         session.OnStepStarted(from);
@@ -115,6 +140,7 @@ public class PlayerGridMotor : MonoBehaviour
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / stepDuration);
             transform.position = Vector3.Lerp(from, to, k * k * (3f - 2f * k));
+            AdvanceWalk(Time.deltaTime);
             Squash(Mathf.Sin(k * Mathf.PI));
             yield return null;
         }
@@ -123,6 +149,7 @@ public class PlayerGridMotor : MonoBehaviour
         Squash(0f);
         gridPos = target;
         stepping = false;
+        lastStepEndTime = Time.time;
 
         if (entering == GridCell.RedGem)
             session.OnGemCell(target);
@@ -148,6 +175,7 @@ public class PlayerGridMotor : MonoBehaviour
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / duration);
             transform.position = Vector3.Lerp(from, to, k);
+            AdvanceWalk(Time.deltaTime);
             if (spriteRenderer != null)
                 spriteRenderer.color = new Color(1f, 1f, 1f, 1f - k);
             if (visual != null)
@@ -156,26 +184,62 @@ public class PlayerGridMotor : MonoBehaviour
         }
     }
 
+    Sprite[] FramesFor(Vector2Int direction)
+    {
+        if (direction == Vector2Int.up)
+            return walkUp;
+        if (direction == Vector2Int.down)
+            return walkDown;
+        return walkSide;
+    }
+
+    Sprite StaticFor(Vector2Int direction)
+    {
+        if (direction == Vector2Int.up)
+            return upSprite;
+        if (direction == Vector2Int.down)
+            return downSprite;
+        return sideSprite;
+    }
+
     void Face(Vector2Int direction)
+    {
+        facing = direction;
+        if (spriteRenderer == null)
+            return;
+
+        spriteRenderer.flipX = direction == Vector2Int.left;
+        ApplyFrame(walking ? Mathf.FloorToInt(walkPhase) : -1);
+    }
+
+    void AdvanceWalk(float deltaTime)
+    {
+        walkPhase += deltaTime * walkFps;
+        ApplyFrame(Mathf.FloorToInt(walkPhase));
+    }
+
+    void ShowIdlePose()
+    {
+        walking = false;
+        walkPhase = 0f;
+        ApplyFrame(-1);
+    }
+
+    // frame < 0 shows the standing pose for the current facing.
+    void ApplyFrame(int frame)
     {
         if (spriteRenderer == null)
             return;
 
-        if (direction == Vector2Int.up && upSprite != null)
-        {
-            spriteRenderer.sprite = upSprite;
-            spriteRenderer.flipX = false;
-        }
-        else if (direction == Vector2Int.down && downSprite != null)
-        {
-            spriteRenderer.sprite = downSprite;
-            spriteRenderer.flipX = false;
-        }
-        else if (sideSprite != null && (direction == Vector2Int.left || direction == Vector2Int.right))
-        {
-            spriteRenderer.sprite = sideSprite;
-            spriteRenderer.flipX = direction == Vector2Int.left;
-        }
+        var frames = FramesFor(facing);
+        Sprite sprite;
+        if (frames != null && frames.Length > 0)
+            sprite = frames[(frame < 0 ? Mathf.Clamp(idleFrame, 0, frames.Length - 1) : frame) % frames.Length];
+        else
+            sprite = StaticFor(facing);
+
+        if (sprite != null && spriteRenderer.sprite != sprite)
+            spriteRenderer.sprite = sprite;
     }
 
     void Squash(float amount)
@@ -184,10 +248,10 @@ public class PlayerGridMotor : MonoBehaviour
             return;
 
         visual.localScale = new Vector3(
-            visualBaseScale.x * (1f + 0.07f * amount),
-            visualBaseScale.y * (1f - 0.07f * amount),
+            visualBaseScale.x * (1f + squashAmount * amount),
+            visualBaseScale.y * (1f - squashAmount * amount),
             visualBaseScale.z);
-        visual.localPosition = visualBasePosition + Vector3.up * (0.08f * amount);
+        visual.localPosition = visualBasePosition + Vector3.up * (squashAmount * amount);
     }
 
     void AnimateIdle()
@@ -196,7 +260,7 @@ public class PlayerGridMotor : MonoBehaviour
             return;
 
         var breathe = Mathf.Sin(Time.time * 3f);
-        visual.localPosition = visualBasePosition + Vector3.up * (breathe * 0.015f);
+        visual.localPosition = visualBasePosition;
         visual.localScale = new Vector3(visualBaseScale.x, visualBaseScale.y * (1f + breathe * 0.012f), visualBaseScale.z);
     }
 }

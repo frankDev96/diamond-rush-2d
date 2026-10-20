@@ -43,12 +43,12 @@ public class GameplayHudController : MonoBehaviour
             stageLine.text = levelName;
     }
 
-    public void SetCounters(int redsCollected, int redsRequired, int optionalReds, int purple, int lives)
+    public void SetCounters(int requiredCollected, int requiredTotal, int extraCollected, int extraTotal, int purple, int lives)
     {
         if (requiredRedsLabel != null)
-            requiredRedsLabel.text = redsCollected + "/" + redsRequired;
+            requiredRedsLabel.text = requiredCollected + "/" + requiredTotal;
         if (optionalRedsLabel != null)
-            optionalRedsLabel.text = optionalReds.ToString();
+            optionalRedsLabel.text = extraCollected + "/" + extraTotal;
         if (purpleLabel != null)
             purpleLabel.text = purple.ToString();
         if (livesLabel != null)

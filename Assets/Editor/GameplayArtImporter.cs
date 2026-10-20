@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -7,16 +8,21 @@ public static class GameplayArtImporter
     public const string SourceFolder = "ArtSource/Gameplay/Angkor/";
     public const string OutputFolder = "Assets/Art/Gameplay/Angkor/";
     public const int PixelsPerUnit = 128;
+    public const int FrameWidth = 160;
+    public const int FrameHeight = 256;
+    public static readonly Vector2 FeetPivot = new Vector2(0.5f, 0.04f);
 
     enum Mode
     {
         Full,
         Key,
         KeyLeftHalf,
-        KeyRightHalf
+        KeyRightHalf,
+        KeyCenter,
+        Grid2x2
     }
 
-    struct Entry
+    class Entry
     {
         public string source;
         public string output;
@@ -24,15 +30,30 @@ public static class GameplayArtImporter
         public int size;
         public bool rotate90;
         public float clearCenter;
+        public float inset;
+        public float seamless;
+        public bool tiled;
+        public bool feetPivot;
 
-        public Entry(string source, string output, Mode mode, int size, bool rotate90 = false, float clearCenter = 0f)
+        public Entry(string source, string output, Mode mode, int size)
         {
             this.source = source;
             this.output = output;
             this.mode = mode;
             this.size = size;
-            this.rotate90 = rotate90;
-            this.clearCenter = clearCenter;
+        }
+
+        public IEnumerable<string> Outputs()
+        {
+            if (mode != Mode.Grid2x2)
+            {
+                yield return output;
+                yield break;
+            }
+
+            var stem = Path.GetFileNameWithoutExtension(output);
+            for (var i = 0; i < 4; i++)
+                yield return stem + "_" + i + ".png";
         }
     }
 
@@ -40,17 +61,24 @@ public static class GameplayArtImporter
     static readonly Entry[] Entries =
     {
         new Entry("floor_stone_single.jpg", "floor_stone.png", Mode.Full, 128),
-        new Entry("floor_stone_single.jpg", "floor_stone_alt.png", Mode.Full, 128, true),
+        new Entry("floor_stone_single.jpg", "floor_stone_alt.png", Mode.Full, 128) { rotate90 = true },
+        new Entry("floor_moss.jpg", "floor_moss.png", Mode.Full, 128) { inset = 0.01f },
         new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Full, 128),
         new Entry("wall_block_full.jpg", "wall_block.png", Mode.Full, 128),
+        new Entry("wall_top.jpg", "wall_top.png", Mode.Full, 128) { inset = 0.02f, seamless = 0.18f },
+        new Entry("jungle_fill.jpg", "jungle_fill.png", Mode.Full, 256) { seamless = 0.2f, tiled = true },
         new Entry("red_diamond.jpg", "red_diamond.png", Mode.Key, 128),
         new Entry("exit_door_closed.jpg", "exit_door_closed.png", Mode.Key, 384),
         new Entry("exit_door_open.jpg", "exit_door_open.png", Mode.Key, 384),
-        new Entry("explorer_down.jpg", "explorer_down.png", Mode.Key, 256),
-        new Entry("explorer_up.jpg", "explorer_up.png", Mode.Key, 256),
-        new Entry("explorer_side.jpg", "explorer_side.png", Mode.Key, 256),
+        new Entry("explorer_down.jpg", "explorer_down.png", Mode.Key, 256) { feetPivot = true },
+        new Entry("explorer_up.jpg", "explorer_up.png", Mode.Key, 256) { feetPivot = true },
+        new Entry("explorer_side.jpg", "explorer_side.png", Mode.Key, 256) { feetPivot = true },
+        new Entry("explorer_walk_down.jpg", "explorer_walk_down.png", Mode.Grid2x2, FrameHeight) { feetPivot = true },
+        new Entry("explorer_walk_up.jpg", "explorer_walk_up.png", Mode.Grid2x2, FrameHeight) { feetPivot = true },
+        new Entry("explorer_walk_side.jpg", "explorer_walk_side.png", Mode.Grid2x2, FrameHeight) { feetPivot = true },
         new Entry("jungle_border_16x9.jpg", "jungle_border_16x9.png", Mode.Full, 1920),
-        new Entry("joystick_base.jpg", "joystick_base.png", Mode.Key, 320, false, 0.165f),
+        new Entry("jungle_vignette_16x9.jpg", "jungle_vignette_16x9.png", Mode.KeyCenter, 1920),
+        new Entry("joystick_base.jpg", "joystick_base.png", Mode.Key, 320) { clearCenter = 0.165f },
         new Entry("joystick_knob.jpg", "joystick_knob.png", Mode.Key, 160),
         new Entry("btn_restart.jpg", "btn_restart.png", Mode.Key, 192),
         new Entry("btn_inventory.jpg", "btn_inventory.png", Mode.Key, 192),
@@ -58,9 +86,24 @@ public static class GameplayArtImporter
         new Entry("red_diamond.jpg", "icon_red.png", Mode.Key, 96),
         new Entry("icon_purple.jpg", "icon_purple.png", Mode.Key, 96),
         new Entry("icon_lives_head.jpg", "icon_lives_head.png", Mode.Key, 96),
+        new Entry("exit_arrow.jpg", "exit_arrow.png", Mode.Key, 96),
         new Entry("fx_dust_dirt.jpg", "dust_puff.png", Mode.KeyLeftHalf, 64),
         new Entry("fx_dust_dirt.jpg", "dirt_chunk.png", Mode.KeyRightHalf, 64),
     };
+
+    struct Image
+    {
+        public Color[] px;
+        public int width;
+        public int height;
+
+        public Image(Color[] px, int width, int height)
+        {
+            this.px = px;
+            this.width = width;
+            this.height = height;
+        }
+    }
 
     [MenuItem("Diamond Rush/Process Gameplay Art")]
     public static void ProcessAll()
@@ -71,7 +114,11 @@ public static class GameplayArtImporter
 
         AssetDatabase.Refresh();
         foreach (var entry in Entries)
-            ConfigureImporter(OutputFolder + entry.output);
+        {
+            foreach (var output in entry.Outputs())
+                ConfigureImporter(OutputFolder + output, entry);
+        }
+
         Debug.Log("Diamond Rush gameplay art processed into " + OutputFolder);
     }
 
@@ -79,8 +126,11 @@ public static class GameplayArtImporter
     {
         foreach (var entry in Entries)
         {
-            if (!File.Exists(OutputFolder + entry.output))
-                return false;
+            foreach (var output in entry.Outputs())
+            {
+                if (!File.Exists(OutputFolder + output))
+                    return false;
+            }
         }
 
         return true;
@@ -89,10 +139,39 @@ public static class GameplayArtImporter
     public static Sprite Load(string file)
     {
         var path = OutputFolder + file;
-        if (AssetImporter.GetAtPath(path) == null && File.Exists(path))
+        if (!File.Exists(path))
+            return null;
+        if (AssetImporter.GetAtPath(path) == null)
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
-        ConfigureImporter(path);
+        ConfigureImporter(path, FindEntry(file));
         return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
+    public static Sprite[] LoadFrames(string stem)
+    {
+        var frames = new List<Sprite>();
+        for (var i = 0; i < 4; i++)
+        {
+            var sprite = Load(stem + "_" + i + ".png");
+            if (sprite != null)
+                frames.Add(sprite);
+        }
+
+        return frames.Count == 4 ? frames.ToArray() : new Sprite[0];
+    }
+
+    static Entry FindEntry(string file)
+    {
+        foreach (var entry in Entries)
+        {
+            foreach (var output in entry.Outputs())
+            {
+                if (output == file)
+                    return entry;
+            }
+        }
+
+        return null;
     }
 
     static void Process(Entry entry)
@@ -104,63 +183,148 @@ public static class GameplayArtImporter
             return;
         }
 
-        var source = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-        source.LoadImage(File.ReadAllBytes(sourcePath));
-        var width = source.width;
-        var height = source.height;
-        var pixels = source.GetPixels();
-        Object.DestroyImmediate(source);
+        var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        texture.LoadImage(File.ReadAllBytes(sourcePath));
+        var image = new Image(texture.GetPixels(), texture.width, texture.height);
+        Object.DestroyImmediate(texture);
+
+        if (entry.mode == Mode.Grid2x2)
+        {
+            ProcessSheet(entry, image);
+            return;
+        }
 
         if (entry.mode == Mode.KeyLeftHalf || entry.mode == Mode.KeyRightHalf)
         {
-            var half = width / 2;
-            var offset = entry.mode == Mode.KeyLeftHalf ? 0 : half;
-            var cropped = new Color[half * height];
-            for (var y = 0; y < height; y++)
-            {
-                for (var x = 0; x < half; x++)
-                    cropped[y * half + x] = pixels[y * width + offset + x];
-            }
+            var half = image.width / 2;
+            image = Crop(image, entry.mode == Mode.KeyLeftHalf ? 0 : half, 0, half, image.height);
+        }
 
-            pixels = cropped;
-            width = half;
+        if (entry.inset > 0f)
+        {
+            var dx = Mathf.RoundToInt(image.width * entry.inset);
+            var dy = Mathf.RoundToInt(image.height * entry.inset);
+            image = Crop(image, dx, dy, image.width - dx * 2, image.height - dy * 2);
         }
 
         if (entry.mode != Mode.Full)
         {
-            var key = pixels[0];
-            for (var i = 0; i < pixels.Length; i++)
-                pixels[i] = KeyPixel(pixels[i], key);
-
+            var key = entry.mode == Mode.KeyCenter
+                ? image.px[(image.height / 2) * image.width + image.width / 2]
+                : image.px[0];
+            KeyImage(image, key);
             if (entry.clearCenter > 0f)
-                ClearCenter(pixels, width, height, entry.clearCenter);
-
-            pixels = Trim(pixels, ref width, ref height);
+                ClearCenter(image, entry.clearCenter);
+            if (entry.mode != Mode.KeyCenter)
+                image = Trim(image);
         }
 
+        if (entry.seamless > 0f)
+            image = MakeSeamless(image, entry.seamless);
+
         if (entry.rotate90)
-            pixels = Rotate90(pixels, ref width, ref height);
+            image = Rotate90(image);
 
         int outWidth;
         int outHeight;
-        if (entry.mode == Mode.Full && width != height)
+        if (entry.seamless > 0f)
+        {
+            outWidth = outHeight = entry.size;
+        }
+        else if (entry.mode == Mode.Full || entry.mode == Mode.KeyCenter)
         {
             outWidth = entry.size;
-            outHeight = Mathf.RoundToInt(entry.size * height / (float)width);
+            outHeight = Mathf.RoundToInt(entry.size * image.height / (float)image.width);
         }
         else
         {
-            var scale = entry.size / (float)Mathf.Max(width, height);
-            outWidth = Mathf.Max(1, Mathf.RoundToInt(width * scale));
-            outHeight = Mathf.Max(1, Mathf.RoundToInt(height * scale));
+            var scale = entry.size / (float)Mathf.Max(image.width, image.height);
+            outWidth = Mathf.Max(1, Mathf.RoundToInt(image.width * scale));
+            outHeight = Mathf.Max(1, Mathf.RoundToInt(image.height * scale));
         }
 
-        var resized = Resample(pixels, width, height, outWidth, outHeight);
-        var result = new Texture2D(outWidth, outHeight, TextureFormat.RGBA32, false);
-        result.SetPixels(resized);
+        Write(OutputFolder + entry.output, Resample(image, outWidth, outHeight));
+    }
+
+    static void ProcessSheet(Entry entry, Image sheet)
+    {
+        KeyImage(sheet, sheet.px[0]);
+        var qw = sheet.width / 2;
+        var qh = sheet.height / 2;
+
+        // Unity pixel rows start at the bottom: frame 0 is the top-left quadrant.
+        var origins = new[]
+        {
+            new Vector2Int(0, qh),
+            new Vector2Int(qw, qh),
+            new Vector2Int(0, 0),
+            new Vector2Int(qw, 0),
+        };
+
+        int minX = qw, minY = qh, maxX = -1, maxY = -1;
+        foreach (var origin in origins)
+        {
+            for (var y = 0; y < qh; y++)
+            {
+                for (var x = 0; x < qw; x++)
+                {
+                    if (sheet.px[(origin.y + y) * sheet.width + origin.x + x].a < 0.05f)
+                        continue;
+                    minX = Mathf.Min(minX, x);
+                    minY = Mathf.Min(minY, y);
+                    maxX = Mathf.Max(maxX, x);
+                    maxY = Mathf.Max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < 0)
+        {
+            Debug.LogError("Empty sprite sheet: " + entry.source);
+            return;
+        }
+
+        minX = Mathf.Max(0, minX - 2);
+        minY = Mathf.Max(0, minY - 2);
+        maxX = Mathf.Min(qw - 1, maxX + 2);
+        maxY = Mathf.Min(qh - 1, maxY + 2);
+        var boxWidth = maxX - minX + 1;
+        var boxHeight = maxY - minY + 1;
+        var scale = Mathf.Min(FrameWidth / (float)boxWidth, (FrameHeight - 8) / (float)boxHeight);
+        var fitWidth = Mathf.Max(1, Mathf.RoundToInt(boxWidth * scale));
+        var fitHeight = Mathf.Max(1, Mathf.RoundToInt(boxHeight * scale));
+
+        var stem = Path.GetFileNameWithoutExtension(entry.output);
+        for (var i = 0; i < origins.Length; i++)
+        {
+            var frame = Crop(sheet, origins[i].x + minX, origins[i].y + minY, boxWidth, boxHeight);
+            var fitted = Resample(frame, fitWidth, fitHeight);
+            var canvas = new Color[FrameWidth * FrameHeight];
+            var offsetX = (FrameWidth - fitWidth) / 2;
+            const int offsetY = 8;
+            for (var y = 0; y < fitHeight; y++)
+            {
+                for (var x = 0; x < fitWidth; x++)
+                    canvas[(y + offsetY) * FrameWidth + x + offsetX] = fitted.px[y * fitWidth + x];
+            }
+
+            Write(OutputFolder + stem + "_" + i + ".png", new Image(canvas, FrameWidth, FrameHeight));
+        }
+    }
+
+    static void Write(string path, Image image)
+    {
+        var result = new Texture2D(image.width, image.height, TextureFormat.RGBA32, false);
+        result.SetPixels(image.px);
         result.Apply();
-        File.WriteAllBytes(OutputFolder + entry.output, result.EncodeToPNG());
+        File.WriteAllBytes(path, result.EncodeToPNG());
         Object.DestroyImmediate(result);
+    }
+
+    static void KeyImage(Image image, Color key)
+    {
+        for (var i = 0; i < image.px.Length; i++)
+            image.px[i] = KeyPixel(image.px[i], key);
     }
 
     static Color KeyPixel(Color pixel, Color key)
@@ -204,34 +368,78 @@ public static class GameplayArtImporter
         return new Color(r, g, b, alpha);
     }
 
-    static void ClearCenter(Color[] pixels, int width, int height, float radiusFraction)
+    static void ClearCenter(Image image, float radiusFraction)
     {
-        var cx = width * 0.5f;
-        var cy = height * 0.5f;
-        var radius = width * radiusFraction;
-        var feather = width * 0.01f;
-        for (var y = 0; y < height; y++)
+        var cx = image.width * 0.5f;
+        var cy = image.height * 0.5f;
+        var radius = image.width * radiusFraction;
+        var feather = image.width * 0.01f;
+        for (var y = 0; y < image.height; y++)
         {
-            for (var x = 0; x < width; x++)
+            for (var x = 0; x < image.width; x++)
             {
                 var d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
                 if (d > radius + feather)
                     continue;
-                var keep = Mathf.Clamp01((d - radius) / feather);
-                var i = y * width + x;
-                pixels[i].a *= keep;
+                image.px[y * image.width + x].a *= Mathf.Clamp01((d - radius) / feather);
             }
         }
     }
 
-    static Color[] Trim(Color[] pixels, ref int width, ref int height)
+    // Cross-fades a band from the far edge into the near edge on each axis so the result wraps.
+    static Image MakeSeamless(Image image, float bandFraction)
     {
-        int minX = width, minY = height, maxX = -1, maxY = -1;
+        var band = Mathf.Max(1, Mathf.RoundToInt(image.width * bandFraction));
+        var tileWidth = image.width - band;
+        var horizontal = new Color[tileWidth * image.height];
+        for (var y = 0; y < image.height; y++)
+        {
+            for (var x = 0; x < tileWidth; x++)
+            {
+                var c = image.px[y * image.width + x];
+                if (x < band)
+                    c = Color.Lerp(image.px[y * image.width + x + tileWidth], c, x / (float)band);
+                horizontal[y * tileWidth + x] = c;
+            }
+        }
+
+        var bandY = Mathf.Max(1, Mathf.RoundToInt(image.height * bandFraction));
+        var tileHeight = image.height - bandY;
+        var result = new Color[tileWidth * tileHeight];
+        for (var y = 0; y < tileHeight; y++)
+        {
+            for (var x = 0; x < tileWidth; x++)
+            {
+                var c = horizontal[y * tileWidth + x];
+                if (y < bandY)
+                    c = Color.Lerp(horizontal[(y + tileHeight) * tileWidth + x], c, y / (float)bandY);
+                result[y * tileWidth + x] = c;
+            }
+        }
+
+        return new Image(result, tileWidth, tileHeight);
+    }
+
+    static Image Crop(Image image, int x0, int y0, int width, int height)
+    {
+        var cropped = new Color[width * height];
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
+                cropped[y * width + x] = image.px[(y + y0) * image.width + x + x0];
+        }
+
+        return new Image(cropped, width, height);
+    }
+
+    static Image Trim(Image image)
+    {
+        int minX = image.width, minY = image.height, maxX = -1, maxY = -1;
+        for (var y = 0; y < image.height; y++)
+        {
+            for (var x = 0; x < image.width; x++)
             {
-                if (pixels[y * width + x].a < 0.05f)
+                if (image.px[y * image.width + x].a < 0.05f)
                     continue;
                 minX = Mathf.Min(minX, x);
                 minY = Mathf.Min(minY, y);
@@ -241,44 +449,32 @@ public static class GameplayArtImporter
         }
 
         if (maxX < 0)
-            return pixels;
+            return image;
 
         const int pad = 2;
         minX = Mathf.Max(0, minX - pad);
         minY = Mathf.Max(0, minY - pad);
-        maxX = Mathf.Min(width - 1, maxX + pad);
-        maxY = Mathf.Min(height - 1, maxY + pad);
-        var newWidth = maxX - minX + 1;
-        var newHeight = maxY - minY + 1;
-        var trimmed = new Color[newWidth * newHeight];
-        for (var y = 0; y < newHeight; y++)
-        {
-            for (var x = 0; x < newWidth; x++)
-                trimmed[y * newWidth + x] = pixels[(y + minY) * width + x + minX];
-        }
-
-        width = newWidth;
-        height = newHeight;
-        return trimmed;
+        maxX = Mathf.Min(image.width - 1, maxX + pad);
+        maxY = Mathf.Min(image.height - 1, maxY + pad);
+        return Crop(image, minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
-    static Color[] Rotate90(Color[] pixels, ref int width, ref int height)
+    static Image Rotate90(Image image)
     {
-        var rotated = new Color[pixels.Length];
-        for (var y = 0; y < height; y++)
+        var rotated = new Color[image.px.Length];
+        for (var y = 0; y < image.height; y++)
         {
-            for (var x = 0; x < width; x++)
-                rotated[x * height + (height - 1 - y)] = pixels[y * width + x];
+            for (var x = 0; x < image.width; x++)
+                rotated[x * image.height + (image.height - 1 - y)] = image.px[y * image.width + x];
         }
 
-        (width, height) = (height, width);
-        return rotated;
+        return new Image(rotated, image.height, image.width);
     }
 
-    static Color[] Resample(Color[] pixels, int width, int height, int outWidth, int outHeight)
+    static Image Resample(Image image, int outWidth, int outHeight)
     {
         var result = new Color[outWidth * outHeight];
-        var samples = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(width / (float)outWidth, height / (float)outHeight)));
+        var samples = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(image.width / (float)outWidth, image.height / (float)outHeight)));
         for (var y = 0; y < outHeight; y++)
         {
             for (var x = 0; x < outWidth; x++)
@@ -288,9 +484,9 @@ public static class GameplayArtImporter
                 {
                     for (var sx = 0; sx < samples; sx++)
                     {
-                        var u = (x + (sx + 0.5f) / samples) / outWidth * width - 0.5f;
-                        var v = (y + (sy + 0.5f) / samples) / outHeight * height - 0.5f;
-                        var c = Bilinear(pixels, width, height, u, v);
+                        var u = (x + (sx + 0.5f) / samples) / outWidth * image.width - 0.5f;
+                        var v = (y + (sy + 0.5f) / samples) / outHeight * image.height - 0.5f;
+                        var c = Bilinear(image, u, v);
                         r += c.r * c.a;
                         g += c.g * c.a;
                         b += c.b * c.a;
@@ -305,33 +501,42 @@ public static class GameplayArtImporter
             }
         }
 
-        return result;
+        return new Image(result, outWidth, outHeight);
     }
 
-    static Color Bilinear(Color[] pixels, int width, int height, float u, float v)
+    static Color Bilinear(Image image, float u, float v)
     {
-        var x0 = Mathf.Clamp(Mathf.FloorToInt(u), 0, width - 1);
-        var y0 = Mathf.Clamp(Mathf.FloorToInt(v), 0, height - 1);
-        var x1 = Mathf.Min(x0 + 1, width - 1);
-        var y1 = Mathf.Min(y0 + 1, height - 1);
+        var x0 = Mathf.Clamp(Mathf.FloorToInt(u), 0, image.width - 1);
+        var y0 = Mathf.Clamp(Mathf.FloorToInt(v), 0, image.height - 1);
+        var x1 = Mathf.Min(x0 + 1, image.width - 1);
+        var y1 = Mathf.Min(y0 + 1, image.height - 1);
         var tx = Mathf.Clamp01(u - x0);
         var ty = Mathf.Clamp01(v - y0);
-        var top = Color.Lerp(pixels[y0 * width + x0], pixels[y0 * width + x1], tx);
-        var bottom = Color.Lerp(pixels[y1 * width + x0], pixels[y1 * width + x1], tx);
+        var top = Color.Lerp(image.px[y0 * image.width + x0], image.px[y0 * image.width + x1], tx);
+        var bottom = Color.Lerp(image.px[y1 * image.width + x0], image.px[y1 * image.width + x1], tx);
         return Color.Lerp(top, bottom, ty);
     }
 
-    static void ConfigureImporter(string path)
+    static void ConfigureImporter(string path, Entry entry)
     {
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null)
             return;
 
+        var pivot = entry != null && entry.feetPivot ? FeetPivot : new Vector2(0.5f, 0.5f);
+        var wrap = entry != null && entry.tiled ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+
         var changed = importer.textureType != TextureImporterType.Sprite
             || importer.spritePixelsPerUnit != PixelsPerUnit
             || importer.mipmapEnabled
             || importer.filterMode != FilterMode.Bilinear
-            || importer.textureCompression != TextureImporterCompression.Uncompressed;
+            || importer.wrapMode != wrap
+            || importer.textureCompression != TextureImporterCompression.Uncompressed
+            || settings.spriteMeshType != SpriteMeshType.FullRect
+            || settings.spriteAlignment != (int)SpriteAlignment.Custom
+            || settings.spritePivot != pivot;
         if (!changed)
             return;
 
@@ -341,8 +546,14 @@ public static class GameplayArtImporter
         importer.mipmapEnabled = false;
         importer.alphaIsTransparency = true;
         importer.filterMode = FilterMode.Bilinear;
-        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.wrapMode = wrap;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
+
+        importer.ReadTextureSettings(settings);
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = (int)SpriteAlignment.Custom;
+        settings.spritePivot = pivot;
+        importer.SetTextureSettings(settings);
         importer.SaveAndReimport();
     }
 }

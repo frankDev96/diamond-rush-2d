@@ -17,6 +17,8 @@ public class GameplaySessionController : MonoBehaviour
     [SerializeField] PlayerGridMotor player;
     [SerializeField] GameplayHudController hud;
     [SerializeField] GameplayFeedback feedback;
+    [SerializeField] GameplayCameraFit cameraFit;
+    [SerializeField] ExitIndicator exitIndicator;
     [SerializeField] FloatingJoystick joystick;
     [SerializeField] TutorialOverlay tutorial;
     [SerializeField] PauseMenuController pauseMenu;
@@ -24,19 +26,23 @@ public class GameplaySessionController : MonoBehaviour
     [SerializeField] ConfirmDialog confirm;
     [SerializeField] LevelCompletePanel completePanel;
     [SerializeField] float completeDelay = 0.6f;
+    [SerializeField] float doorRevealHold = 1.2f;
 
-    readonly int redsRequired = Level1Layout.RequiredReds;
+    const int RedsRequired = Level1Layout.RequiredReds;
+    const int ExtraReds = Level1Layout.ExtraReds;
+
     int redsCollected;
-    int optionalReds;
     int purpleWallet;
     int lives = 3;
     int modalCount;
     int audioPauseCount;
     SessionState state = SessionState.Playing;
 
-    public bool AcceptsInput => state == SessionState.Playing && modalCount == 0;
+    public bool AcceptsInput => state == SessionState.Playing && modalCount == 0 && (cameraFit == null || !cameraFit.IsPanning);
 
     int LevelIndex => LevelLaunchContext.LevelIndex > 0 ? LevelLaunchContext.LevelIndex : 1;
+    int RequiredCollected => Mathf.Min(redsCollected, RedsRequired);
+    int ExtraCollected => Mathf.Max(0, redsCollected - RedsRequired);
 
     void Awake()
     {
@@ -45,8 +51,10 @@ public class GameplaySessionController : MonoBehaviour
         ProfileSave.EnsureSeeded();
         GameSettings.Apply();
 
-        board.BuildFromRows(Level1Layout.Rows, redsRequired);
+        board.BuildFromRows(Level1Layout.Rows, RedsRequired);
         player.Initialize(board, board.Spawn);
+        if (cameraFit != null)
+            cameraFit.SnapToTarget();
 
         if (hud != null)
         {
@@ -126,7 +134,7 @@ public class GameplaySessionController : MonoBehaviour
     void OpenInventory()
     {
         if (AcceptsInput && inventory != null)
-            inventory.Show(redsCollected, redsRequired, purpleWallet, lives);
+            inventory.Show(RequiredCollected, RedsRequired, ExtraCollected, ExtraReds, purpleWallet, lives);
     }
 
     void AskRestart()
@@ -188,11 +196,11 @@ public class GameplaySessionController : MonoBehaviour
     void OnGemArrived(int count)
     {
         RefreshHud();
-        var complete = count >= redsRequired;
         if (hud != null)
-            hud.PunchRequired(complete);
-        board.LightNextSlot();
-        if (complete && !board.ExitUnlocked)
+            hud.PunchRequired(count >= RedsRequired);
+        if (count <= RedsRequired)
+            board.LightNextSlot();
+        if (count >= RedsRequired && !board.ExitUnlocked)
             UnlockExit();
     }
 
@@ -202,6 +210,12 @@ public class GameplaySessionController : MonoBehaviour
         GameSfx.Instance?.PlayDoorUnlock();
         if (feedback != null)
             feedback.DoorUnlocked(board.DoorWorldPosition);
+        if (joystick != null)
+            joystick.Release();
+        if (cameraFit != null)
+            cameraFit.PanTo(board.DoorWorldPosition, doorRevealHold);
+        if (exitIndicator != null)
+            exitIndicator.Activate(board.DoorWorldPosition);
     }
 
     public void OnReachedExit(Vector2Int cell)
@@ -212,6 +226,8 @@ public class GameplaySessionController : MonoBehaviour
         state = SessionState.Won;
         if (joystick != null)
             joystick.Release();
+        if (exitIndicator != null)
+            exitIndicator.Deactivate();
         ProfileSave.CompleteLevel(LevelIndex);
         player.PlayExitAnimation();
         StartCoroutine(ShowComplete());
@@ -221,7 +237,7 @@ public class GameplaySessionController : MonoBehaviour
     {
         yield return new WaitForSeconds(completeDelay);
         if (completePanel != null)
-            completePanel.Show(Level1Layout.StageName, redsCollected, redsRequired);
+            completePanel.Show(Level1Layout.StageName, RequiredCollected, RedsRequired, ExtraCollected, ExtraReds);
         else
             LeaveToWorldSelect();
     }
@@ -229,7 +245,7 @@ public class GameplaySessionController : MonoBehaviour
     void RefreshHud()
     {
         if (hud != null)
-            hud.SetCounters(redsCollected, redsRequired, optionalReds, purpleWallet, lives);
+            hud.SetCounters(RequiredCollected, RedsRequired, ExtraCollected, ExtraReds, purpleWallet, lives);
     }
 
     public void Restart()

@@ -14,6 +14,7 @@ public enum GridCell
 
 public class GridBoard : MonoBehaviour
 {
+    const int BackdropOrder = -50;
     const int FloorOrder = 0;
     const int ShadowOrder = 1;
     const int DirtOrder = 2;
@@ -28,10 +29,14 @@ public class GridBoard : MonoBehaviour
     [SerializeField] float cellSize = 1f;
     [SerializeField] float doorWidthCells = 2.1f;
     [SerializeField] float gemSize = 0.7f;
+    [SerializeField] int backdropMargin = 12;
     [SerializeField] Sprite floorSprite;
     [SerializeField] Sprite floorAltSprite;
+    [SerializeField] Sprite floorMossSprite;
     [SerializeField] Sprite dirtSprite;
     [SerializeField] Sprite wallSprite;
+    [SerializeField] Sprite wallTopSprite;
+    [SerializeField] Sprite jungleFillSprite;
     [SerializeField] Sprite gemSprite;
     [SerializeField] Sprite doorClosedSprite;
     [SerializeField] Sprite doorOpenSprite;
@@ -95,6 +100,7 @@ public class GridBoard : MonoBehaviour
             }
         }
 
+        SpawnBackdrop();
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
@@ -102,6 +108,22 @@ public class GridBoard : MonoBehaviour
         }
 
         SpawnDoor(exitCells);
+    }
+
+    void SpawnBackdrop()
+    {
+        if (jungleFillSprite == null)
+            return;
+
+        var go = new GameObject("JungleBackdrop");
+        go.transform.SetParent(tilesRoot, false);
+        go.transform.position = transform.position;
+        var renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = jungleFillSprite;
+        renderer.drawMode = SpriteDrawMode.Tiled;
+        renderer.tileMode = SpriteTileMode.Continuous;
+        renderer.size = new Vector2((width + backdropMargin * 2) * cellSize, (height + backdropMargin * 2) * cellSize);
+        renderer.sortingOrder = BackdropOrder;
     }
 
     static GridCell CharToCell(char ch)
@@ -129,17 +151,23 @@ public class GridBoard : MonoBehaviour
 
         if (cell == GridCell.Stone)
         {
-            var wall = SpawnTile("Wall", wallSprite, position, WallOrder);
-            if (wall != null && IsOpen(x, y - 1))
-                SpawnShadow(x, y - 1);
+            SpawnWall(x, y, position);
             return;
         }
 
-        var hash = (x * 73856093) ^ (y * 19349663);
-        var alt = floorAltSprite != null && (hash & 1) == 1;
-        var floor = SpawnTile("Floor", alt ? floorAltSprite : floorSprite, position, FloorOrder);
+        var hash = Hash(x, y);
+        var floorChoice = floorSprite;
+        if (floorMossSprite != null && hash % 100 < 15)
+            floorChoice = floorMossSprite;
+        else if (floorAltSprite != null && (hash & 1) == 1)
+            floorChoice = floorAltSprite;
+        var floor = SpawnTile("Floor", floorChoice, position, FloorOrder);
         if (floor != null)
             floor.flipX = (hash & 2) == 2;
+        if (!IsOpen(x - 1, y))
+            SpawnSideShadow(x, y, -1);
+        if (!IsOpen(x + 1, y))
+            SpawnSideShadow(x, y, 1);
 
         if (cell == GridCell.Dirt)
         {
@@ -156,10 +184,61 @@ public class GridBoard : MonoBehaviour
         }
     }
 
+    static int Hash(int x, int y)
+    {
+        var h = (x * 73856093) ^ (y * 19349663);
+        return h & 0x7fffffff;
+    }
+
     bool IsOpen(int x, int y)
     {
         var cell = GetCell(x, y);
         return cell != GridCell.Void && cell != GridCell.Stone;
+    }
+
+    bool HasOpenNeighbour(int x, int y)
+    {
+        for (var dy = -1; dy <= 1; dy++)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                if ((dx != 0 || dy != 0) && IsOpen(x + dx, y + dy))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Wall faces show only where the cell below is open; deeper rock reads as wall tops, and
+    // cells far from any tunnel are left empty so the jungle backdrop shows through.
+    void SpawnWall(int x, int y, Vector3 position)
+    {
+        if (IsOpen(x, y - 1))
+        {
+            if (SpawnTile("Wall", wallSprite, position, WallOrder) != null)
+                SpawnShadow(x, y - 1);
+            return;
+        }
+
+        if (!HasOpenNeighbour(x, y))
+            return;
+
+        var top = SpawnTile("WallTop", wallTopSprite != null ? wallTopSprite : wallSprite, position, WallOrder);
+        if (top != null)
+            top.flipX = (Hash(x, y) & 4) == 4;
+    }
+
+    void SpawnSideShadow(int x, int y, int side)
+    {
+        var go = new GameObject("SideShadow");
+        go.transform.SetParent(tilesRoot, false);
+        go.transform.position = CellToWorld(x, y) + Vector3.right * (side * cellSize * 0.44f);
+        go.transform.localScale = new Vector3(cellSize * 0.12f, cellSize, 1f);
+        var renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = GameplaySprites.WhiteSquare;
+        renderer.color = new Color(0f, 0f, 0f, 0.2f);
+        renderer.sortingOrder = ShadowOrder;
     }
 
     SpriteRenderer SpawnTile(string name, Sprite sprite, Vector3 position, int order)

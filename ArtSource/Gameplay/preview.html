@@ -3,39 +3,70 @@
 <head>
 <meta charset="utf-8">
 <style>
-  html, body { margin: 0; background: #111; }
+  html, body { margin: 0; background: #111; overflow: hidden; height: 100%; }
   #stage { position: relative; overflow: hidden; background: #0d170d; transform-origin: 0 0; }
   #stage img, #stage div { position: absolute; }
   .label { color: #fff7e6; font: bold 26px sans-serif; text-shadow: 0 0 3px #2e1708, 0 0 3px #2e1708; white-space: nowrap; }
 </style>
 </head>
 <body>
-<div id="stage"></div>
+<div id="wrap" style="position:relative;overflow:hidden"><div id="stage"></div></div>
 <script>
+// Layout preview mirroring GridBoard + GameplayCameraFit + GameplayLevel1Builder (v4).
+// ?view=follow|overview  &w=&h=  &px=&py= (player cell, top-origin)  &frame=0..3  &unlocked=1
 const A = '/Assets/Art/Gameplay/Angkor/', MAP = '/Assets/Art/Map/';
 const rows = [
-  "#######EE#######",
-  "#.....#..#.....#",
-  "#.ddd.#..#.ddd.#",
-  "#.drd......drd.#",
-  "#.ddd.dddd.ddd.#",
-  "#.....drdd.....#",
-  "#..#..dddd..#..#",
-  "#.......P......#",
-  "################"];
+  "############################################EE##",
+  "#############################rd#############...#",
+  "#############################dd########..###...#",
+  "#########################..........####..####..#",
+  "###.......###############..........####..####..#",
+  "###.......###############..######..####..####..#",
+  "###..###..###############..######..##.......#..#",
+  "###..###..##...ddr....###..######..##..###..#..#",
+  "#....###..##..######..###..######..##..###..#dd#",
+  "#....###dd##..######..###..ddddd#..##..###..#dd#",
+  "###..dr#dd##..######..###..dddrd#..##..###..#..#",
+  "###..###..##..#r..dd..###..ddddd#..##..###dd#..#",
+  "###..###..##..#...dd..###..######......###dd#..#",
+  "###..###......######..###..######......###..#..#",
+  "###dd###......######..###..######..#######..#..#",
+  "###dd###############..###..######..#######..#..#",
+  "#.....##############.........dd....#######.....#",
+  "#.P...##############.........dd....#######.....#",
+  "#.....##########################################",
+  "################################################"];
 const params = new URLSearchParams(location.search);
 const W = +(params.get('w') || 1920), H = +(params.get('h') || 1080);
+const view = params.get('view') || 'follow';
+const frame = +(params.get('frame') || 1);
+const unlocked = params.get('unlocked') === '1';
 const stage = document.getElementById('stage');
 stage.style.width = W + 'px'; stage.style.height = H + 'px';
-stage.style.transform = `scale(${window.innerWidth / W})`;
+const fitScale = Math.min(window.innerWidth / W, window.innerHeight / H);
+stage.style.transform = `scale(${fitScale})`;
+const wrap = document.getElementById('wrap');
+wrap.style.width = W * fitScale + 'px'; wrap.style.height = H * fitScale + 'px';
 
 const ui = Math.pow(2, (Math.log2(W / 1920) + Math.log2(H / 1080)) / 2);
 const left = 250 * ui, right = 260 * ui, top = 150 * ui, bottom = 40 * ui;
 const gw = rows[0].length, gh = rows.length;
 const availW = W - left - right, availH = H - top - bottom;
-const ppu = Math.min(availW / gw, availH / gh);
+const pad = 1, topPad = 1.6;
+const ppu = view === 'overview'
+  ? Math.min(availW / (gw + 2 * pad), availH / (gh + pad + topPad))
+  : Math.min(availW / 13, availH / 7);
 const cx = left + availW / 2, cy = top + availH / 2;
-const x0 = cx - gw * ppu / 2, y0 = cy - gh * ppu / 2;
+
+let spawn = [2, 17];
+rows.forEach((row, r) => { const c = row.indexOf('P'); if (c >= 0) spawn = [c, r]; });
+const pc = params.has('px') ? +params.get('px') : spawn[0];
+const pr = params.has('py') ? +params.get('py') : spawn[1];
+
+function clamp(v, lo, hi) { return lo <= hi ? Math.min(hi, Math.max(lo, v)) : (lo + hi) / 2; }
+const fx = clamp((pc + 0.5) * ppu, -pad * ppu + availW / 2, (gw + pad) * ppu - availW / 2);
+const fy = clamp((pr + 0.5) * ppu, -topPad * ppu + availH / 2, (gh + pad) * ppu - availH / 2);
+const ox = cx - fx, oy = cy - fy;
 
 function img(src, x, y, w, h, z, extra) {
   const e = document.createElement('img');
@@ -57,42 +88,75 @@ function text(t, x, y, size, color, z, align) {
   stage.appendChild(e); return e;
 }
 
-// background cover
-const bgW = 1920, bgH = 1080, bgScale = Math.max(W / bgW, H / bgH) * 1.02;
-img(A + 'jungle_border_16x9.png', W / 2 - bgW * bgScale / 2, H / 2 - bgH * bgScale / 2, bgW * bgScale, bgH * bgScale, 0);
+// tiled jungle backdrop: board + 12 cells, 256px tile = 2 cells
+const m = 12;
+box(ox - m * ppu, oy - m * ppu, (gw + 2 * m) * ppu, (gh + 2 * m) * ppu, 0,
+  { backgroundImage: `url(${A}jungle_fill.png)`, backgroundSize: `${2 * ppu}px ${2 * ppu}px`, backgroundPosition: `${(gw % 2) * ppu / 2}px ${(gh % 2) * ppu / 2}px` });
 
+const open = (c, r) => r >= 0 && r < gh && c >= 0 && c < gw && rows[r][c] !== '#';
+const hashOf = (c, r) => (Math.imul(c, 73856093) ^ Math.imul(gh - 1 - r, 19349663)) & 0x7fffffff;
 const exits = [];
 for (let r = 0; r < gh; r++) for (let c = 0; c < gw; c++) {
-  const ch = rows[r][c], x = x0 + c * ppu, y = y0 + r * ppu, s = ppu * 1.01;
-  const hash = ((c * 73856093) ^ ((gh - 1 - r) * 19349663)) >>> 0;
+  const ch = rows[r][c], x = ox + c * ppu, y = oy + r * ppu, s = ppu * 1.01;
+  if (ch === 'E') exits.push([x, y]);
+  if (x > W + ppu || y > H + ppu || x < -2 * ppu || y < -2 * ppu) continue;
+  const hash = hashOf(c, r);
   if (ch === '#') {
-    img(A + 'wall_block.png', x, y, s, s, 30);
-    const below = rows[r + 1] && rows[r + 1][c];
-    if (below && below !== '#') box(x, y + ppu, ppu, ppu * 0.24, 10, { background: 'rgba(0,0,0,0.28)' });
+    if (open(c, r + 1)) {
+      img(A + 'wall_block.png', x, y, s, s, 30);
+      box(x, y + ppu, ppu, ppu * 0.24, 10, { background: 'rgba(0,0,0,0.28)' });
+    } else {
+      let near = false;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if ((dr || dc) && open(c + dc, r + dr)) near = true;
+      if (near) img(A + 'wall_top.png', x, y, s, s, 30, (hash & 4) ? { transform: 'scaleX(-1)' } : null);
+    }
     continue;
   }
-  img(A + ((hash & 1) ? 'floor_stone_alt.png' : 'floor_stone.png'), x, y, s, s, 1, (hash & 2) ? { transform: 'scaleX(-1)' } : null);
+  const floor = hash % 100 < 15 ? 'floor_moss.png' : (hash & 1) ? 'floor_stone_alt.png' : 'floor_stone.png';
+  img(A + floor, x, y, s, s, 1, (hash & 2) ? { transform: 'scaleX(-1)' } : null);
+  if (!open(c - 1, r)) box(x, y, ppu * 0.12, ppu, 10, { background: 'rgba(0,0,0,0.2)' });
+  if (!open(c + 1, r)) box(x + ppu * 0.88, y, ppu * 0.12, ppu, 10, { background: 'rgba(0,0,0,0.2)' });
   if (ch === 'd') img(A + 'dirt_soft.png', x, y, s, s, 20, (hash & 4) ? { transform: 'scaleX(-1)' } : null);
   if (ch === 'r') {
     const g = 0.7 * ppu, gl = g * 1.6;
     box(x + ppu / 2 - gl / 2, y + ppu / 2 - gl / 2, gl, gl, 60, { background: 'radial-gradient(circle, rgba(255,64,77,0.35) 0%, rgba(255,64,77,0) 70%)' });
     img(A + 'red_diamond.png', x + ppu / 2 - g / 2, y + ppu / 2 - g * 119 / 128 / 2, g, null, 70);
   }
-  if (ch === 'E') exits.push([x, y]);
-  if (ch === 'P') {
-    const h = 2 * 0.52 * ppu, w = h * 135 / 256;
-    box(x + ppu / 2 - 0.31 * ppu, y + ppu / 2 + 0.36 * ppu - 0.1 * ppu, 0.62 * ppu, 0.2 * ppu, 90, { background: 'radial-gradient(ellipse, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 70%)' });
-    img(A + 'explorer_up.png', x + ppu / 2 - w / 2, y + ppu / 2 - 0.12 * ppu - h / 2, w, h, 100);
-  }
 }
+
+// player: 160x256 frame at 128 PPU, scale 0.52, feet pivot 0.04, feet 0.42 cells below centre
+{
+  const x = ox + pc * ppu, y = oy + pr * ppu;
+  const h = 2 * 0.52 * ppu, w = h * 160 / 256, feetY = y + ppu / 2 + 0.42 * ppu;
+  box(x + ppu / 2 - 0.31 * ppu, feetY - 0.03 * ppu - 0.1 * ppu, 0.62 * ppu, 0.2 * ppu, 90, { background: 'radial-gradient(ellipse, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 70%)' });
+  img(A + `explorer_walk_up_${frame}.png`, x + ppu / 2 - w / 2, feetY + 0.04 * h - h, w, h, 100);
+}
+
+let door = null;
 if (exits.length) {
   const ex = (exits[0][0] + exits[exits.length - 1][0]) / 2 + ppu / 2;
   const dw = 2.1 * ppu, dh = dw * 384 / 375, bottomY = exits[0][1] + ppu;
-  img(A + 'exit_door_closed.png', ex - dw / 2, bottomY - dh, dw, dh, 40);
+  img(A + (unlocked ? 'exit_door_open.png' : 'exit_door_closed.png'), ex - dw / 2, bottomY - dh, dw, dh, 40);
   const sw = dw * 0.14, sy = bottomY - dh * 0.66;
   for (let i = 0; i < 3; i++) {
     const sx = ex + (i - 1) * dw * 0.2;
-    img(A + 'red_diamond.png', sx - sw / 2, sy - sw * 119 / 128 / 2, sw, null, 50, { filter: i === 0 ? 'none' : 'brightness(0.18)', opacity: 0.95 });
+    img(A + 'red_diamond.png', sx - sw / 2, sy - sw * 119 / 128 / 2, sw, null, 50, { filter: unlocked ? 'none' : 'brightness(0.18)', opacity: 0.95 });
+  }
+  door = [ex, bottomY - dh / 2];
+}
+
+// screen vignette, behind HUD
+img(A + 'jungle_vignette_16x9.png', 0, 0, W, H, 150, { opacity: 0.85 });
+
+// exit indicator
+if (unlocked && door) {
+  const inside = door[0] >= left && door[0] <= W - right && door[1] >= top && door[1] <= H - bottom;
+  if (!inside) {
+    const ins = 80 * ui, hx = availW / 2 - ins, hy = availH / 2 - ins;
+    const dx = door[0] - cx, dy = door[1] - cy;
+    const t = Math.min(1, Math.min(Math.abs(dx) > 0.001 ? hx / Math.abs(dx) : 1e9, Math.abs(dy) > 0.001 ? hy / Math.abs(dy) : 1e9));
+    const ax = cx + dx * t, ay = cy + dy * t, s = 88 * ui;
+    img(A + 'exit_arrow.png', ax - s / 2, ay - s / 2, s, s, 160, { objectFit: 'contain', transform: `rotate(${Math.atan2(dy, dx) * 180 / Math.PI}deg)` });
   }
 }
 
@@ -101,7 +165,7 @@ const u = v => v * ui;
 box(u(24), u(16), u(680), u(104), 200, { borderStyle: 'solid', borderWidth: u(14) + 'px', borderImage: `url(${MAP}hud_chip.png) 14 fill stretch`, boxSizing: 'border-box', opacity: 0.94 });
 text('WORLD 1: ANGKOR WAT - LEVEL 1', u(56), u(28), u(20), '#fff7e6', 201);
 text('THE GATES', u(56), u(60), u(36), '#ffe68c', 201);
-const chips = [['icon_red.png', '1/3', 1], ['icon_red.png', '0', 0.55], ['icon_purple.png', '0', 1], ['icon_lives_head.png', 'x3', 1]];
+const chips = [['icon_red.png', '0/3', 1], ['icon_red.png', '0/2', 0.55], ['icon_purple.png', '0', 1], ['icon_lives_head.png', 'x3', 1]];
 const offs = [-570, -380, -190, 0];
 chips.forEach(([icon, v, a], i) => {
   const rx = W - u(24) + u(offs[i]), x = rx - u(172), y = u(18) + u(4);
@@ -116,8 +180,10 @@ img(A + 'joystick_base.png', u(140) - u(110), H - u(190) - u(110), u(220), u(220
 img(A + 'joystick_knob.png', u(140) - u(52), H - u(190) - u(52), u(104), u(104), 201, { objectFit: 'contain', opacity: 0.45 });
 text('DRAG JOYSTICK', u(140), H - u(62), u(18), '#ffe68c', 202, 'center');
 text('TO MOVE!', u(140), H - u(40), u(18), '#ffe68c', 202, 'center');
-const hint = box(W / 2 - u(240), H - u(84) - u(38), u(480), u(76), 210, { background: 'rgba(20,15,10,0.82)' });
-text('Move to Dig!', W / 2, H - u(84), u(40), '#ffe68c', 211, 'center');
+if (view === 'follow' && !unlocked) {
+  box(W / 2 - u(240), H - u(84) - u(38), u(480), u(76), 210, { background: 'rgba(20,15,10,0.82)' });
+  text('Move to Dig!', W / 2, H - u(84), u(40), '#ffe68c', 211, 'center');
+}
 </script>
 </body>
 </html>

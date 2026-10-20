@@ -10,18 +10,27 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.
 const sourceDir = path.join(root, 'ArtSource/Gameplay/Angkor');
 const outputDir = path.join(root, 'Assets/Art/Gameplay/Angkor');
 
+const FRAME_W = 160, FRAME_H = 256;
+
 const entries = [
   ['floor_stone_single.jpg', 'floor_stone.png', 'full', 128],
   ['floor_stone_single.jpg', 'floor_stone_alt.png', 'full', 128, { rotate90: true }],
+  ['floor_moss.jpg', 'floor_moss.png', 'full', 128, { inset: 0.01 }],
   ['dirt_soft.jpg', 'dirt_soft.png', 'full', 128],
   ['wall_block_full.jpg', 'wall_block.png', 'full', 128],
+  ['wall_top.jpg', 'wall_top.png', 'full', 128, { inset: 0.02, seamless: 0.18 }],
+  ['jungle_fill.jpg', 'jungle_fill.png', 'full', 256, { seamless: 0.2 }],
   ['red_diamond.jpg', 'red_diamond.png', 'key', 128],
   ['exit_door_closed.jpg', 'exit_door_closed.png', 'key', 384],
   ['exit_door_open.jpg', 'exit_door_open.png', 'key', 384],
   ['explorer_down.jpg', 'explorer_down.png', 'key', 256],
   ['explorer_up.jpg', 'explorer_up.png', 'key', 256],
   ['explorer_side.jpg', 'explorer_side.png', 'key', 256],
+  ['explorer_walk_down.jpg', 'explorer_walk_down.png', 'grid2x2', FRAME_H],
+  ['explorer_walk_up.jpg', 'explorer_walk_up.png', 'grid2x2', FRAME_H],
+  ['explorer_walk_side.jpg', 'explorer_walk_side.png', 'grid2x2', FRAME_H],
   ['jungle_border_16x9.jpg', 'jungle_border_16x9.png', 'full', 1920],
+  ['jungle_vignette_16x9.jpg', 'jungle_vignette_16x9.png', 'keycenter', 1920],
   ['joystick_base.jpg', 'joystick_base.png', 'key', 320, { clearCenter: 0.165 }],
   ['joystick_knob.jpg', 'joystick_knob.png', 'key', 160],
   ['btn_restart.jpg', 'btn_restart.png', 'key', 192],
@@ -30,6 +39,7 @@ const entries = [
   ['red_diamond.jpg', 'icon_red.png', 'key', 96],
   ['icon_purple.jpg', 'icon_purple.png', 'key', 96],
   ['icon_lives_head.jpg', 'icon_lives_head.png', 'key', 96],
+  ['exit_arrow.jpg', 'exit_arrow.png', 'key', 96],
   ['fx_dust_dirt.jpg', 'dust_puff.png', 'left', 64],
   ['fx_dust_dirt.jpg', 'dirt_chunk.png', 'right', 64],
 ];
@@ -61,10 +71,10 @@ function readJpeg(file) {
   return { width, height, px };
 }
 
-function keyImage(img) {
+function keyImage(img, keyIndex = 0) {
   const low = 50 / 255, high = 110 / 255;
   const { px } = img;
-  const kr = px[0], kg = px[1], kb = px[2];
+  const kr = px[keyIndex], kg = px[keyIndex + 1], kb = px[keyIndex + 2];
   for (let i = 0; i < px.length; i += 4) {
     const dr = px[i] - kr, dg = px[i + 1] - kg, db = px[i + 2] - kb;
     const a = Math.min(1, Math.max(0, (Math.sqrt(dr * dr + dg * dg + db * db) - low) / (high - low)));
@@ -192,19 +202,77 @@ function writePng(file, img) {
 
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
+// Cross-fades a band from the far edge into the near edge on each axis so the result wraps.
+function makeSeamless(img, fraction) {
+  const band = Math.max(1, Math.round(img.width * fraction));
+  const tw = img.width - band;
+  const horiz = new Float32Array(tw * img.height * 4);
+  for (let y = 0; y < img.height; y++) for (let x = 0; x < tw; x++) {
+    const d = (y * tw + x) * 4, s = (y * img.width + x) * 4, f = (y * img.width + x + tw) * 4;
+    const t = x < band ? x / band : 1;
+    for (let c = 0; c < 4; c++) horiz[d + c] = t < 1 ? img.px[f + c] * (1 - t) + img.px[s + c] * t : img.px[s + c];
+  }
+  const bandY = Math.max(1, Math.round(img.height * fraction));
+  const th = img.height - bandY;
+  const out = new Float32Array(tw * th * 4);
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+    const d = (y * tw + x) * 4, s = (y * tw + x) * 4, f = ((y + th) * tw + x) * 4;
+    const t = y < bandY ? y / bandY : 1;
+    for (let c = 0; c < 4; c++) out[d + c] = t < 1 ? horiz[f + c] * (1 - t) + horiz[s + c] * t : horiz[s + c];
+  }
+  return { width: tw, height: th, px: out };
+}
+
+function processSheet(img, output) {
+  keyImage(img);
+  const qw = Math.floor(img.width / 2), qh = Math.floor(img.height / 2);
+  const origins = [[0, 0], [qw, 0], [0, qh], [qw, qh]];
+  let minX = qw, minY = qh, maxX = -1, maxY = -1;
+  for (const [ox, oy] of origins) for (let y = 0; y < qh; y++) for (let x = 0; x < qw; x++) {
+    if (img.px[((oy + y) * img.width + ox + x) * 4 + 3] < 0.05) continue;
+    minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+  }
+  minX = Math.max(0, minX - 2); minY = Math.max(0, minY - 2);
+  maxX = Math.min(qw - 1, maxX + 2); maxY = Math.min(qh - 1, maxY + 2);
+  const bw = maxX - minX + 1, bh = maxY - minY + 1;
+  const s = Math.min(FRAME_W / bw, (FRAME_H - 8) / bh);
+  const fw = Math.max(1, Math.round(bw * s)), fh = Math.max(1, Math.round(bh * s));
+  const stem = output.replace(/\.png$/, '');
+  origins.forEach(([ox, oy], i) => {
+    const fitted = resample(crop(img, ox + minX, oy + minY, bw, bh), fw, fh);
+    const canvas = { width: FRAME_W, height: FRAME_H, px: new Float32Array(FRAME_W * FRAME_H * 4) };
+    const offX = Math.floor((FRAME_W - fw) / 2), offY = FRAME_H - 8 - fh;
+    for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+      const sIdx = (y * fw + x) * 4, dIdx = ((y + offY) * FRAME_W + x + offX) * 4;
+      for (let c = 0; c < 4; c++) canvas.px[dIdx + c] = fitted.px[sIdx + c];
+    }
+    writePng(path.join(outputDir, `${stem}_${i}.png`), canvas);
+    console.log(`${stem}_${i}.png ${FRAME_W}x${FRAME_H} (content ${fw}x${fh})`);
+  });
+}
+
+const only = process.argv.slice(2);
 fs.mkdirSync(outputDir, { recursive: true });
 for (const [source, output, mode, size, opts = {}] of entries) {
+  if (only.length && !only.some(o => source.startsWith(o) || output.startsWith(o))) continue;
   let img = readJpeg(path.join(sourceDir, source));
+  if (mode === 'grid2x2') { processSheet(img, output); continue; }
   if (mode === 'left') img = crop(img, 0, 0, Math.floor(img.width / 2), img.height);
   if (mode === 'right') img = crop(img, Math.floor(img.width / 2), 0, Math.floor(img.width / 2), img.height);
-  if (mode !== 'full') {
-    keyImage(img);
-    if (opts.clearCenter) clearCenter(img, opts.clearCenter);
-    img = trim(img);
+  if (opts.inset) {
+    const dx = Math.round(img.width * opts.inset), dy = Math.round(img.height * opts.inset);
+    img = crop(img, dx, dy, img.width - dx * 2, img.height - dy * 2);
   }
+  if (mode !== 'full') {
+    keyImage(img, mode === 'keycenter' ? (Math.floor(img.height / 2) * img.width + Math.floor(img.width / 2)) * 4 : 0);
+    if (opts.clearCenter) clearCenter(img, opts.clearCenter);
+    if (mode !== 'keycenter') img = trim(img);
+  }
+  if (opts.seamless) img = makeSeamless(img, opts.seamless);
   if (opts.rotate90) img = rotate90(img);
   let ow, oh;
-  if (mode === 'full' && img.width !== img.height) { ow = size; oh = Math.round((size * img.height) / img.width); }
+  if (opts.seamless) { ow = oh = size; }
+  else if (mode === 'full' || mode === 'keycenter') { ow = size; oh = Math.round((size * img.height) / img.width); }
   else { const s = size / Math.max(img.width, img.height); ow = Math.max(1, Math.round(img.width * s)); oh = Math.max(1, Math.round(img.height * s)); }
   writePng(path.join(outputDir, output), resample(img, ow, oh));
   console.log(`${output} ${ow}x${oh}`);

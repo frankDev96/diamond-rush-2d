@@ -25,13 +25,13 @@ public class InventoryModal : MonoBehaviour
             root.SetActive(false);
     }
 
-    public void Show(int reds, int redsRequired, int purple, int lives)
+    public void Show(int required, int requiredTotal, int extra, int extraTotal, int purple, int lives)
     {
         if (IsOpen)
             return;
 
         if (redsValue != null)
-            redsValue.text = reds + " / " + redsRequired;
+            redsValue.text = required + "/" + requiredTotal + "  +" + extra + "/" + extraTotal;
         if (purpleValue != null)
             purpleValue.text = purple.ToString();
         if (livesValue != null)
