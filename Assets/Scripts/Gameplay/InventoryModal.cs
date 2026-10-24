@@ -11,6 +11,7 @@ public class InventoryModal : MonoBehaviour
     [SerializeField] TMP_Text purpleValue;
     [SerializeField] TMP_Text livesValue;
     [SerializeField] Button closeButton;
+    [SerializeField] Button returnButton;
     [SerializeField] Button dimButton;
 
     public bool IsOpen => root != null && root.activeSelf;
@@ -21,6 +22,8 @@ public class InventoryModal : MonoBehaviour
             closeButton.onClick.AddListener(Hide);
         if (dimButton != null)
             dimButton.onClick.AddListener(Hide);
+        if (returnButton != null)
+            returnButton.onClick.AddListener(OnReturn);
         if (root != null)
             root.SetActive(false);
     }
@@ -36,6 +39,8 @@ public class InventoryModal : MonoBehaviour
             purpleValue.text = purple.ToString();
         if (livesValue != null)
             livesValue.text = "x" + lives;
+        if (returnButton != null)
+            returnButton.gameObject.SetActive(LevelLaunchContext.LevelIndex >= 7);
 
         root.SetActive(true);
         root.transform.SetAsLastSibling();
@@ -50,5 +55,11 @@ public class InventoryModal : MonoBehaviour
 
         root.SetActive(false);
         GameplaySessionController.Instance?.CloseModal(false);
+    }
+
+    void OnReturn()
+    {
+        Hide();
+        GameplaySessionController.Instance?.ReturnToCheckpoint();
     }
 }

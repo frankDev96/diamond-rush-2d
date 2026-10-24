@@ -10,38 +10,53 @@ public class GameplayFeedback : MonoBehaviour
     [SerializeField] GameplayCameraFit cameraFit;
     [SerializeField] Camera worldCamera;
     [SerializeField] GameplayHudController hud;
-    [SerializeField] Sprite dustSprite;
     [SerializeField] Sprite dirtChunkSprite;
 
+    ParticleSystem footDust;
+    ParticleSystem digDebris;
+    ParticleSystem gemSparkle;
     Coroutine shakeRoutine;
 
-    public void SpawnDust(Vector3 position)
+    void Awake()
     {
-        StartCoroutine(DustRoutine(position + Vector3.down * 0.32f));
+        footDust = GameplayFxParticles.CreateFootDust(transform);
+        digDebris = GameplayFxParticles.CreateDigDebris(transform);
+        gemSparkle = GameplayFxParticles.CreateGemSparkle(transform);
+    }
+
+    public void SpawnFootstep(Vector3 feetWorld)
+    {
+        GameplayFxParticles.EmitBurst(footDust, feetWorld + Vector3.down * 0.04f, Random.Range(3, 5));
     }
 
     public void DigBurst(Vector3 position)
     {
-        for (var i = 0; i < 6; i++)
-            StartCoroutine(ChunkRoutine(position));
-        Shake(0.08f, 0.04f, Vector2.zero);
+        GameplayFxParticles.EmitBurst(digDebris, position + Vector3.up * 0.08f, Random.Range(8, 13));
+        for (var i = 0; i < 4; i++)
+            StartCoroutine(ChunkRoutine(position, true));
+        Shake(0.12f, 0.06f, Vector2.zero);
     }
 
-    public void CollectGem(GameObject gem, Action onArrived)
+    public void PlayDigLunge(Vector3 dirtFace, Vector2Int facing, Transform explorerVisual)
     {
-        if (gem == null)
+        StartCoroutine(DigShovelRoutine(dirtFace, facing, explorerVisual));
+    }
+
+    public void CollectGem(GameObject gemRoot, Action onArrived)
+    {
+        if (gemRoot == null)
         {
             onArrived?.Invoke();
             return;
         }
 
-        StartCoroutine(GemRoutine(gem, onArrived));
+        StartCoroutine(GemRoutine(gemRoot, onArrived));
     }
 
     public void DoorUnlocked(Vector3 doorPosition)
     {
         Shake(0.3f, 0.1f, Vector2.zero);
-        StartCoroutine(BurstRoutine(doorPosition, new Color(1f, 0.85f, 0.4f, 0.8f), 3.5f, 0.6f));
+        StartCoroutine(SparkleBurst(doorPosition, new Color(1f, 0.85f, 0.4f, 0.8f), 6));
     }
 
     public void Bump(Vector2Int direction)
@@ -78,28 +93,37 @@ public class GameplayFeedback : MonoBehaviour
         shakeRoutine = null;
     }
 
-    IEnumerator DustRoutine(Vector3 position)
+    IEnumerator DigShovelRoutine(Vector3 dirtFace, Vector2Int facing, Transform explorerVisual)
     {
-        var dust = GameplaySprites.Spawn("Dust", transform, dustSprite != null ? dustSprite : GameplaySprites.SoftCircle, position, 0.3f, FxOrder);
-        var baseScale = dust.transform.localScale;
+        var shovel = GameplaySprites.Spawn("DigShovel", transform, GameplaySprites.WhiteSquare, dirtFace, 0.22f, FxOrder + 1);
+        shovel.color = new Color(0.55f, 0.42f, 0.28f, 1f);
+        var pivot = explorerVisual != null ? explorerVisual.position + Vector3.up * 0.08f : dirtFace;
         var t = 0f;
-        const float duration = 0.35f;
+        const float duration = 0.12f;
         while (t < duration)
         {
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / duration);
-            dust.transform.localScale = baseScale * Mathf.Lerp(1f, 2f, k);
-            dust.transform.position = position + Vector3.up * (0.1f * k);
-            dust.color = new Color(1f, 1f, 1f, 0.75f * (1f - k));
+            var arc = Mathf.Sin(k * Mathf.PI);
+            var offset = new Vector3(facing.x, facing.y, 0f) * (0.18f * arc);
+            var spin = Mathf.Lerp(-55f, 35f, k) * (facing.x < 0 ? -1f : 1f);
+            shovel.transform.position = pivot + offset;
+            shovel.transform.rotation = Quaternion.Euler(0f, 0f, spin);
+            shovel.transform.localScale = Vector3.one * (0.22f / shovel.sprite.bounds.size.x) * (0.85f + arc * 0.25f);
             yield return null;
         }
 
-        Destroy(dust.gameObject);
+        if (shovel != null)
+            Destroy(shovel.gameObject);
     }
 
-    IEnumerator ChunkRoutine(Vector3 origin)
+    IEnumerator ChunkRoutine(Vector3 origin, bool dig = false)
     {
-        var chunk = GameplaySprites.Spawn("DirtChunk", transform, dirtChunkSprite != null ? dirtChunkSprite : GameplaySprites.SoftCircle, origin, Random.Range(0.14f, 0.24f), FxOrder);
+        var sprite = dirtChunkSprite != null ? dirtChunkSprite : GameplaySprites.WhiteSquare;
+        var size = dig ? Random.Range(0.06f, 0.11f) : Random.Range(0.14f, 0.24f);
+        var chunk = GameplaySprites.Spawn("DirtChunk", transform, sprite, origin, size, FxOrder);
+        if (dig)
+            chunk.color = new Color(0.45f, 0.32f, 0.22f, 1f);
         var velocity = new Vector3(Random.Range(-1.6f, 1.6f), Random.Range(1.2f, 2.6f), 0f);
         var spin = Random.Range(-540f, 540f);
         var t = 0f;
@@ -110,32 +134,48 @@ public class GameplayFeedback : MonoBehaviour
             velocity.y -= 9f * Time.deltaTime;
             chunk.transform.position += velocity * Time.deltaTime;
             chunk.transform.Rotate(0f, 0f, spin * Time.deltaTime);
-            chunk.color = new Color(1f, 1f, 1f, 1f - Mathf.Clamp01(t / duration));
+            chunk.color = new Color(chunk.color.r, chunk.color.g, chunk.color.b, 1f - Mathf.Clamp01(t / duration));
             yield return null;
         }
 
         Destroy(chunk.gameObject);
     }
 
-    IEnumerator GemRoutine(GameObject gem, Action onArrived)
+    IEnumerator GemRoutine(GameObject gemRoot, Action onArrived)
     {
-        var root = gem.transform;
-        var startScale = root.localScale;
-        StartCoroutine(BurstRoutine(root.position, new Color(1f, 0.4f, 0.45f, 0.8f), 1.6f, 0.35f));
+        var gemRenderer = gemRoot.transform.Find("Gem")?.GetComponent<SpriteRenderer>();
+        var glow = gemRoot.transform.Find("Glow")?.GetComponent<SpriteRenderer>();
+        if (gemRenderer == null)
+            gemRenderer = gemRoot.GetComponentInChildren<SpriteRenderer>();
+
+        if (glow != null)
+        {
+            var c = glow.color;
+            c.a = 0f;
+            glow.color = c;
+        }
+
+        var flyTransform = gemRenderer != null ? gemRenderer.transform : gemRoot.transform;
+        var startScale = flyTransform.localScale;
+        var startPos = flyTransform.position;
+        GameplayFxParticles.EmitBurst(gemSparkle, startPos, Random.Range(6, 9));
 
         var t = 0f;
-        const float pop = 0.12f;
-        while (t < pop)
+        const float lift = 0.08f;
+        while (t < lift)
         {
             t += Time.deltaTime;
-            root.localScale = startScale * Mathf.Lerp(1f, 1.4f, Mathf.Clamp01(t / pop));
+            var k = Mathf.Clamp01(t / lift);
+            flyTransform.position = startPos + Vector3.up * (0.12f * k);
+            flyTransform.localScale = startScale * (1f + 0.04f * Mathf.Sin(k * Mathf.PI));
             yield return null;
         }
 
-        var from = root.position;
+        var from = flyTransform.position;
+        var spin = 0f;
         var cam = worldCamera != null ? worldCamera : Camera.main;
         t = 0f;
-        const float fly = 0.45f;
+        const float fly = 0.42f;
         while (t < fly)
         {
             t += Time.deltaTime;
@@ -148,30 +188,22 @@ public class GameplayFeedback : MonoBehaviour
                 to.z = 0f;
             }
 
-            var arc = Vector3.up * (Mathf.Sin(k * Mathf.PI) * 0.8f);
-            root.position = Vector3.Lerp(from, to, k * k) + arc;
-            root.localScale = startScale * Mathf.Lerp(1.4f, 0.5f, k);
+            var eased = k * k * (3f - 2f * k);
+            var arc = Vector3.up * (Mathf.Sin(k * Mathf.PI) * 0.35f);
+            flyTransform.position = Vector3.Lerp(from, to, eased) + arc;
+            spin += Time.deltaTime * 720f;
+            flyTransform.rotation = Quaternion.Euler(0f, 0f, spin);
+            flyTransform.localScale = Vector3.Lerp(startScale, startScale * 0.22f, eased);
             yield return null;
         }
 
-        Destroy(gem);
+        Destroy(gemRoot);
         onArrived?.Invoke();
     }
 
-    IEnumerator BurstRoutine(Vector3 position, Color color, float size, float duration)
+    IEnumerator SparkleBurst(Vector3 position, Color tint, int count)
     {
-        var burst = GameplaySprites.Spawn("Burst", transform, GameplaySprites.SoftCircle, position, size * 0.3f, FxOrder);
-        var baseScale = burst.transform.localScale;
-        var t = 0f;
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            var k = Mathf.Clamp01(t / duration);
-            burst.transform.localScale = baseScale * Mathf.Lerp(1f, 3.3f, k);
-            burst.color = new Color(color.r, color.g, color.b, color.a * (1f - k));
-            yield return null;
-        }
-
-        Destroy(burst.gameObject);
+        GameplayFxParticles.EmitBurst(gemSparkle, position, count);
+        yield break;
     }
 }

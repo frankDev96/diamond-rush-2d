@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class TutorialOverlay : MonoBehaviour
 {
+    [SerializeField] GridBoard board;
+    [SerializeField] GameplayCameraFit cameraFit;
     [SerializeField] CanvasGroup introCard;
     [SerializeField] TMP_Text introLevel;
     [SerializeField] TMP_Text introStage;
@@ -11,18 +13,19 @@ public class TutorialOverlay : MonoBehaviour
     [SerializeField] TMP_Text hintMessage;
     [SerializeField] float introSeconds = 2.2f;
     [SerializeField] float hintSeconds = 6f;
+    [SerializeField] float goalPanHold = 1.2f;
 
     bool dug;
     bool hintVisible;
 
-    public void Begin(int levelIndex, string stageName)
+    public void Begin(int levelIndex, string stageName, string tutorialHint)
     {
         if (introLevel != null)
             introLevel.text = "LEVEL " + levelIndex;
         if (introStage != null)
             introStage.text = stageName;
         if (hintMessage != null)
-            hintMessage.text = "Move to Dig!";
+            hintMessage.text = string.IsNullOrEmpty(tutorialHint) ? "Move to Dig!" : tutorialHint;
 
         SetVisible(hint, false);
         StartCoroutine(Run());
@@ -45,6 +48,13 @@ public class TutorialOverlay : MonoBehaviour
             yield return new WaitForSeconds(introSeconds);
             yield return Fade(introCard, 1f, 0f, 0.3f);
             SetVisible(introCard, false);
+        }
+
+        if (cameraFit != null && board != null)
+        {
+            cameraFit.PanTo(board.DoorCameraAnchor, goalPanHold);
+            while (cameraFit.IsPanning)
+                yield return null;
         }
 
         if (dug || hint == null)

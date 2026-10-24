@@ -21,7 +21,13 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 | --- | --- | --- | --- | --- |
 | `floor_stone.png` | 128×128 | `floor_stone_single.jpg` | Full | Base floor on every open cell. Random X flip by cell hash. |
 | `floor_stone_alt.png` | 128×128 | `floor_stone_single.jpg` | Full, rotated 90° | Floor variant (~42%). |
-| `floor_moss.png` | 128×128 | `floor_moss.jpg` | Full | Floor variant with moss in the cracks (~15%). |
+| `floor_moss.png` | 128×128 | `floor_moss.jpg` | Full | Floor variant with moss in the cracks (~18%). |
+| `floor_cracked.png` | 128×128 | procedural (`generate_extra_art.mjs`) | Full | Cracked stone variant (~10%). |
+| `boulder_face.png` | 128×128 | procedural | Full | Pushable boulder (~0.92 cells). |
+| `snake_green.png` | 128×128 | procedural | Full | Patrolling snake (`GridWorldController`). |
+| `chest_wood.png` / `chest_secret.png` | 128×128 | procedural | Full | +4 / +8 purple when stepped on. |
+| `trap_fire.png` / `trap_spear.png` | 128×128 | procedural | Full | Fire damage; spear toggles every ~0.7 s. |
+| `checkpoint_pad.png` | 128×128 | procedural | Full | Sets respawn; backpack **RETURN** from level 7+. |
 | `dirt_soft.png` | 128×128 | `dirt_soft.jpg` | Full | Soft dirt over floor; shrinks + fades when dug. |
 | `wall_block.png` | 128×128 | `wall_block_full.jpg` | Full | Wall cell with an **open cell below**: moss top (upper 60%) + brick front face (lower 40%). Casts a 0.24-cell shadow strip onto the cell below. |
 | `wall_top.png` | 128×128, seamless | `wall_top.jpg` | Full | Wall cell whose cell below is **also wall**: mossy stone top only, no face. |
@@ -61,7 +67,7 @@ Runtime: visual scale 0.52 (≈1.04 cells tall), 10 fps cycle, frame 0 when idle
 | `exit_arrow.png` | 96×96 | Gold arrow pointing right. Off-screen exit indicator, rotated toward the door, 88 ref-px, pulses. |
 | `jungle_vignette_16x9.png` | 1920×1080, transparent centre | Leaf/vine frame ~140 px thick, screen-space overlay at 85% alpha, raycasts off. |
 
-Shared menu art reused by gameplay: `Assets/Art/Map/hud_chip.png` (9-sliced, border 14) for chips, title banner and intro card; `Assets/Art/Home/stone_board.png`, `button_wood.png`, `button_continue.png`, `pill_on.png`, `pill_off.png` for modals.
+Shared menu art reused by gameplay: `Assets/Art/Map/hud_plaque_gold.png` (9-sliced, border 8) for counter chips when present, else `hud_chip.png`; title banner and intro card still use `hud_chip.png`; `Assets/Art/Home/stone_board.png`, `button_wood.png`, `button_continue.png`, `pill_on.png`, `pill_off.png` for modals.
 
 ## FX
 

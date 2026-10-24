@@ -39,6 +39,7 @@ public class GameplayCameraFit : MonoBehaviour
     void Awake()
     {
         EnsureCamera();
+        cam.backgroundColor = new Color(0.04f, 0.1f, 0.05f);
         basePosition = transform.position;
     }
 

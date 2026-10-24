@@ -102,17 +102,20 @@ for (let r = 0; r < gh; r++) for (let c = 0; c < gw; c++) {
   if (x > W + ppu || y > H + ppu || x < -2 * ppu || y < -2 * ppu) continue;
   const hash = hashOf(c, r);
   if (ch === '#') {
-    if (open(c, r + 1)) {
-      img(A + 'wall_block.png', x, y, s, s, 30);
-      box(x, y + ppu, ppu, ppu * 0.24, 10, { background: 'rgba(0,0,0,0.28)' });
+    const card = open(c+1,r)||open(c-1,r)||open(c,r+1)||open(c,r-1);
+    if (card) {
+      img(A + 'wall_block.png', x, y, s, s, 30, open(c-1,r)&&!open(c+1,r)?{transform:'scaleX(-1)'}:null);
+      if (open(c, r + 1)) box(x, y + ppu, ppu, ppu * 0.24, 10, { background: 'rgba(0,0,0,0.28)' });
     } else {
       let near = false;
       for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if ((dr || dc) && open(c + dc, r + dr)) near = true;
       if (near) img(A + 'wall_top.png', x, y, s, s, 30, (hash & 4) ? { transform: 'scaleX(-1)' } : null);
+      else box(x, y, s, s, 2, { backgroundImage: `url(${A}jungle_fill.png)`, backgroundSize: `${2*ppu}px ${2*ppu}px`, opacity: 0.9 });
     }
     continue;
   }
-  const floor = hash % 100 < 15 ? 'floor_moss.png' : (hash & 1) ? 'floor_stone_alt.png' : 'floor_stone.png';
+  const roll = hash % 100;
+  const floor = roll < 18 ? 'floor_moss.png' : roll < 28 ? 'floor_cracked.png' : (hash & 1) ? 'floor_stone_alt.png' : 'floor_stone.png';
   img(A + floor, x, y, s, s, 1, (hash & 2) ? { transform: 'scaleX(-1)' } : null);
   if (!open(c - 1, r)) box(x, y, ppu * 0.12, ppu, 10, { background: 'rgba(0,0,0,0.2)' });
   if (!open(c + 1, r)) box(x + ppu * 0.88, y, ppu * 0.12, ppu, 10, { background: 'rgba(0,0,0,0.2)' });
@@ -128,8 +131,17 @@ for (let r = 0; r < gh; r++) for (let c = 0; c < gw; c++) {
 {
   const x = ox + pc * ppu, y = oy + pr * ppu;
   const h = 2 * 0.52 * ppu, w = h * 160 / 256, feetY = y + ppu / 2 + 0.42 * ppu;
-  box(x + ppu / 2 - 0.31 * ppu, feetY - 0.03 * ppu - 0.1 * ppu, 0.62 * ppu, 0.2 * ppu, 90, { background: 'radial-gradient(ellipse, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 70%)' });
-  img(A + `explorer_walk_up_${frame}.png`, x + ppu / 2 - w / 2, feetY + 0.04 * h - h, w, h, 100);
+  const bob = Math.sin((frame + 0.5) / 4 * Math.PI * 2) * 0.028 * ppu;
+  const shadowSpread = 1 + Math.abs(Math.sin((frame + 0.5) / 4 * Math.PI * 2)) * 0.2;
+  box(x + ppu / 2 - 0.31 * ppu * shadowSpread, feetY - 0.03 * ppu - 0.1 * ppu / shadowSpread, 0.62 * ppu * shadowSpread, 0.2 * ppu / shadowSpread, 90, { background: 'radial-gradient(ellipse, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 70%)' });
+  if (frame === 0 || frame === 2) {
+    for (let i = 0; i < 4; i++) {
+      const dx = (Math.random() - 0.5) * 0.12 * ppu, dy = -0.04 * ppu + Math.random() * 0.06 * ppu;
+      const sz = (0.04 + Math.random() * 0.04) * ppu;
+      box(x + ppu / 2 + dx - sz / 2, feetY - sz / 2 + dy, sz, sz, 95, { borderRadius: '50%', background: 'rgba(158,148,133,0.75)' });
+    }
+  }
+  img(A + `explorer_walk_up_${frame}.png`, x + ppu / 2 - w / 2, feetY + 0.04 * h - h - bob, w, h, 100);
 }
 
 let door = null;

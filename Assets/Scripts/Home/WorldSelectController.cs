@@ -85,14 +85,30 @@ public class WorldSelectController : MonoBehaviour
 
     public void OnPlay()
     {
-        if (selectedLevel == 1)
+        if (selectedLevel < 1 || selectedLevel > 9)
         {
-            LevelLaunchContext.Set(0, 1);
-            SceneManager.LoadScene(GameScenes.GameplayLevel1);
+            ShowToast("Level " + selectedLevel + " is coming soon.");
             return;
         }
 
-        ShowToast("Level " + selectedLevel + " is coming soon.");
+        LevelLaunchContext.Set(0, selectedLevel);
+        SceneManager.LoadScene(SceneForLevel(selectedLevel));
+    }
+
+    static string SceneForLevel(int level)
+    {
+        switch (level)
+        {
+            case 2: return GameScenes.GameplayLevel2;
+            case 3: return GameScenes.GameplayLevel3;
+            case 4: return GameScenes.GameplayLevel4;
+            case 5: return GameScenes.GameplayLevel5;
+            case 6: return GameScenes.GameplayLevel6;
+            case 7: return GameScenes.GameplayLevel7;
+            case 8: return GameScenes.GameplayLevel8;
+            case 9: return GameScenes.GameplayLevel9;
+            default: return GameScenes.GameplayLevel1;
+        }
     }
 
     void Refresh()

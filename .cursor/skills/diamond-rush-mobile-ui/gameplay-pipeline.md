@@ -51,12 +51,18 @@ When adding an asset: add the entry in both files, add it to `docs/GAMEPLAY_ASSE
 
 - 1 cell = 1 world unit. Sort orders: backdrop −50, floor 0, shadows 1, dirt 2, walls 3, door 4, door slots 5, gem glow 6, gem 7, player shadow and FX 9, player 10.
 - Wall autotiling in `GridBoard`: open cell below → `wall_block` plus a shadow strip on the floor below; otherwise any open cell among the 8 neighbours → `wall_top`; otherwise draw nothing, so the tiled `jungle_fill` backdrop (board plus 12 cells, `SpriteDrawMode.Tiled`) shows through.
-- Floor variants are picked by a stable hash (`(x*73856093 ^ y*19349663) & 0x7fffffff`): about 15% `floor_moss`, then `floor_stone`/`floor_stone_alt`. The preview uses `Math.imul` so the hashes match.
+- Floor variants are picked by a stable hash (`(x*73856093 ^ y*19349663) & 0x7fffffff`): about 18% `floor_moss`, 10% `floor_cracked`, then `floor_stone`/`floor_stone_alt`. The preview uses `Math.imul` so the hashes match.
+- **Intro goal pan:** after the intro card fades, `TutorialOverlay` calls `GameplayCameraFit.PanTo(board.DoorCameraAnchor, hold)` so the locked door is visible once; input stays blocked while `IsPanning`.
+- **Interaction hints:** `InteractionHintOverlay` shows one contextual arrow (dig-adjacent dirt, or pushable boulder) until the player digs; raycasts off.
+- Reference mockups for Level 2 may show every mechanic at once; shipping levels follow PRD hints one at a time.
 - Characters use feet pivots. The player visual sits at local y −0.42 with scale 0.52, so the boots are near the bottom of the cell.
+- **PlayerGridMotor:** root transform = grid cell; child **Visual** gets bob, lean, squash, and idle breathe. Step timing 0.18 s/tile (0.36 s when pushing boulders); dig 0.12 s lunge (halt at tile edge, lean, shovel arc); push 0.12 s brace. Code-driven 4-frame walk arrays per direction plus 0.05 s down-facing pivot on horizontal reversal. Optional `Animator` on Visual exposes `MoveX`, `MoveY`, `IsMoving`, `IsDigging`, `IsPushing` (no controller required).
+- **GameplayFeedback / GameplayFxParticles:** foot dust and dig debris use runtime `ParticleSystem` bursts (warm-gray specs 0.04–0.08, sort order 9). Do not fall back to `GameplaySprites.SoftCircle` for footsteps — it reads as a giant white puff. Gem pickup animates the **Gem** child only (hide glow); fly to `GameplayHudController.RequiredChipScreenPoint` then `PunchRequired`.
 
 ## 4. Level layouts
 
-- Symbols: `#` stone, `.` floor, `d` soft dirt, `r` red gem, `E` exit (two cells, `EE`), `P` spawn. Rows are listed top row first; `GridBoard` flips them so y=0 is the bottom.
+- Symbols: `#` stone, `.` floor, `d` soft dirt, `r` red gem, `g` purple gem, `B` boulder, `T`/`t` chest/secret chest, `F` fire, `!` spear, `K` checkpoint, `S` snake marker (floor; patrol from `SnakePatrolSpec` in layout), `E` exit (`EE`), `P` spawn. Rows are listed top row first; `GridBoard` flips them so y=0 is the bottom.
+- Levels 1–9: `GameplayLevelCatalog`, scenes `GameplayLevelN.unity`, builder **Build Angkor Gameplay Levels 2-9** (`GameplayLevelsBuilder`, layout version 6). World Select PLAY loads level 1–9.
 - Design in a Node script (template: `ArtSource/Gameplay/level1_maze.mjs`) that carves rectangles and validates. Iterate until it prints `OK`, then paste the rows into `LevelNLayout.cs` with `RequiredReds` / `TotalReds` / `ExtraReds` constants.
 - Validation rules (mirrored in `Assets/Editor/LevelLayoutValidator.cs`, which the builder runs and refuses to save on failure):
   - Exact width and height; stone border except the `EE` door in the top row.

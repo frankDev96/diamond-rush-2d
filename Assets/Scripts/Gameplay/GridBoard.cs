@@ -10,6 +10,13 @@ public enum GridCell
     Dirt,
     RedGem,
     Exit,
+    Boulder,
+    PurpleGem,
+    Chest,
+    SecretChest,
+    Fire,
+    Spear,
+    Checkpoint,
 }
 
 public class GridBoard : MonoBehaviour
@@ -29,15 +36,23 @@ public class GridBoard : MonoBehaviour
     [SerializeField] float cellSize = 1f;
     [SerializeField] float doorWidthCells = 2.1f;
     [SerializeField] float gemSize = 0.7f;
-    [SerializeField] int backdropMargin = 12;
+    [SerializeField] int backdropMargin = 18;
     [SerializeField] Sprite floorSprite;
     [SerializeField] Sprite floorAltSprite;
     [SerializeField] Sprite floorMossSprite;
+    [SerializeField] Sprite floorCrackedSprite;
     [SerializeField] Sprite dirtSprite;
     [SerializeField] Sprite wallSprite;
     [SerializeField] Sprite wallTopSprite;
     [SerializeField] Sprite jungleFillSprite;
     [SerializeField] Sprite gemSprite;
+    [SerializeField] Sprite purpleGemSprite;
+    [SerializeField] Sprite boulderSprite;
+    [SerializeField] Sprite chestSprite;
+    [SerializeField] Sprite secretChestSprite;
+    [SerializeField] Sprite fireSprite;
+    [SerializeField] Sprite spearSprite;
+    [SerializeField] Sprite checkpointSprite;
     [SerializeField] Sprite doorClosedSprite;
     [SerializeField] Sprite doorOpenSprite;
     [SerializeField] Transform tilesRoot;
@@ -45,7 +60,9 @@ public class GridBoard : MonoBehaviour
 
     readonly Dictionary<Vector2Int, SpriteRenderer> dirtViews = new Dictionary<Vector2Int, SpriteRenderer>();
     readonly Dictionary<Vector2Int, GameObject> gemViews = new Dictionary<Vector2Int, GameObject>();
+    readonly Dictionary<Vector2Int, Transform> boulderViews = new Dictionary<Vector2Int, Transform>();
     readonly List<SpriteRenderer> slotViews = new List<SpriteRenderer>();
+    GridWorldController world;
 
     GridCell[,] cells;
     int width;
@@ -66,6 +83,15 @@ public class GridBoard : MonoBehaviour
     public Vector3 WorldCenter => transform.position;
     public Vector2 WorldSize => new Vector2(width * cellSize, height * cellSize);
     public Vector3 DoorWorldPosition => doorView != null ? doorView.transform.position : transform.position;
+    public Vector3 DoorCameraAnchor => doorView != null ? doorBase + Vector3.down * (doorHeight * 0.12f) : DoorWorldPosition;
+
+    public void BuildFromSpec(GameplayLevelSpec spec)
+    {
+        BuildFromRows(spec.Rows, spec.RequiredReds);
+        world = GetComponent<GridWorldController>();
+        if (world != null)
+            world.Initialize(this, spec);
+    }
 
     public void BuildFromRows(string[] rows, int redsRequired)
     {
@@ -74,6 +100,7 @@ public class GridBoard : MonoBehaviour
         ClearChildren(entitiesRoot);
         dirtViews.Clear();
         gemViews.Clear();
+        boulderViews.Clear();
         slotViews.Clear();
         exitUnlocked = false;
         litSlots = 0;
@@ -122,8 +149,22 @@ public class GridBoard : MonoBehaviour
         renderer.sprite = jungleFillSprite;
         renderer.drawMode = SpriteDrawMode.Tiled;
         renderer.tileMode = SpriteTileMode.Continuous;
-        renderer.size = new Vector2((width + backdropMargin * 2) * cellSize, (height + backdropMargin * 2) * cellSize);
+        var size = new Vector2((width + backdropMargin * 2) * cellSize, (height + backdropMargin * 2) * cellSize);
+        renderer.size = size;
         renderer.sortingOrder = BackdropOrder;
+        renderer.color = new Color(0.72f, 0.82f, 0.68f);
+
+        // Darker under-layer so solid rock reads as deep jungle mass (mockup image 3).
+        var under = new GameObject("JungleBackdropDeep");
+        under.transform.SetParent(tilesRoot, false);
+        under.transform.position = transform.position;
+        var deep = under.AddComponent<SpriteRenderer>();
+        deep.sprite = jungleFillSprite;
+        deep.drawMode = SpriteDrawMode.Tiled;
+        deep.tileMode = SpriteTileMode.Continuous;
+        deep.size = size * 1.04f;
+        deep.sortingOrder = BackdropOrder - 1;
+        deep.color = new Color(0.45f, 0.58f, 0.42f);
     }
 
     static GridCell CharToCell(char ch)
@@ -137,6 +178,22 @@ public class GridBoard : MonoBehaviour
                 return GridCell.Dirt;
             case 'r':
                 return GridCell.RedGem;
+            case 'g':
+                return GridCell.PurpleGem;
+            case 'B':
+                return GridCell.Boulder;
+            case 'T':
+                return GridCell.Chest;
+            case 't':
+                return GridCell.SecretChest;
+            case 'F':
+                return GridCell.Fire;
+            case '!':
+                return GridCell.Spear;
+            case 'K':
+                return GridCell.Checkpoint;
+            case 'S':
+                return GridCell.Floor;
             case 'E':
                 return GridCell.Exit;
             default:
@@ -157,8 +214,11 @@ public class GridBoard : MonoBehaviour
 
         var hash = Hash(x, y);
         var floorChoice = floorSprite;
-        if (floorMossSprite != null && hash % 100 < 15)
+        var roll = hash % 100;
+        if (floorMossSprite != null && roll < 18)
             floorChoice = floorMossSprite;
+        else if (floorCrackedSprite != null && roll < 28)
+            floorChoice = floorCrackedSprite;
         else if (floorAltSprite != null && (hash & 1) == 1)
             floorChoice = floorAltSprite;
         var floor = SpawnTile("Floor", floorChoice, position, FloorOrder);
@@ -179,9 +239,62 @@ public class GridBoard : MonoBehaviour
             }
         }
         else if (cell == GridCell.RedGem)
-        {
             SpawnGem(x, y, position);
-        }
+        else if (cell == GridCell.PurpleGem)
+            SpawnPurpleGem(x, y, position);
+        else if (cell == GridCell.Boulder)
+            SpawnBoulder(x, y, position);
+        else if (cell == GridCell.Chest)
+            SpawnProp("Chest", chestSprite, x, y, position, GemOrder);
+        else if (cell == GridCell.SecretChest)
+            SpawnProp("SecretChest", secretChestSprite, x, y, position, GemOrder);
+        else if (cell == GridCell.Fire)
+            SpawnProp("Fire", fireSprite, x, y, position, DirtOrder + 1);
+        else if (cell == GridCell.Spear)
+            SpawnProp("Spear", spearSprite, x, y, position, WallOrder + 1);
+        else if (cell == GridCell.Checkpoint)
+            SpawnProp("Checkpoint", checkpointSprite, x, y, position, FloorOrder + 1);
+    }
+
+    void SpawnPurpleGem(int x, int y, Vector3 position)
+    {
+        var sprite = purpleGemSprite != null ? purpleGemSprite : gemSprite;
+        if (sprite == null)
+            return;
+
+        var root = new GameObject("PurpleGem");
+        root.transform.SetParent(entitiesRoot, false);
+        root.transform.position = position;
+        var glow = GameplaySprites.Spawn("Glow", root.transform, GameplaySprites.SoftCircle, position, gemSize * 1.4f, GemGlowOrder);
+        glow.color = new Color(0.65f, 0.35f, 1f, 0.35f);
+        var gem = GameplaySprites.Spawn("Gem", root.transform, sprite, position, gemSize * 0.85f, GemOrder);
+        var idle = gem.gameObject.AddComponent<GemIdle>();
+        idle.SetGlow(glow);
+        gemViews[new Vector2Int(x, y)] = root;
+    }
+
+    void SpawnBoulder(int x, int y, Vector3 position)
+    {
+        if (boulderSprite == null)
+            return;
+
+        var go = new GameObject("Boulder");
+        go.transform.SetParent(entitiesRoot, false);
+        go.transform.position = position;
+        var view = GameplaySprites.Spawn("Face", go.transform, boulderSprite, position, cellSize * 0.92f, WallOrder + 2);
+        boulderViews[new Vector2Int(x, y)] = go.transform;
+    }
+
+    void SpawnProp(string name, Sprite sprite, int x, int y, Vector3 position, int order)
+    {
+        if (sprite == null)
+            return;
+
+        var go = new GameObject(name);
+        go.transform.SetParent(entitiesRoot, false);
+        go.transform.position = position;
+        GameplaySprites.Spawn(name + "View", go.transform, sprite, position, cellSize * 0.88f, order);
+        gemViews[new Vector2Int(x, y)] = go;
     }
 
     static int Hash(int x, int y)
@@ -210,23 +323,54 @@ public class GridBoard : MonoBehaviour
         return false;
     }
 
-    // Wall faces show only where the cell below is open; deeper rock reads as wall tops, and
-    // cells far from any tunnel are left empty so the jungle backdrop shows through.
+    bool HasCardinalOpen(int x, int y)
+    {
+        return IsOpen(x + 1, y) || IsOpen(x - 1, y) || IsOpen(x, y + 1) || IsOpen(x, y - 1);
+    }
+
+    // Tunnel-adjacent stone uses the mossy block face; inner rock uses wall tops; deep fill is jungle.
     void SpawnWall(int x, int y, Vector3 position)
     {
-        if (IsOpen(x, y - 1))
+        if (HasCardinalOpen(x, y))
         {
-            if (SpawnTile("Wall", wallSprite, position, WallOrder) != null)
-                SpawnShadow(x, y - 1);
+            var wall = SpawnTile("Wall", wallSprite, position, WallOrder);
+            if (wall != null)
+            {
+                if (IsOpen(x - 1, y) && !IsOpen(x + 1, y))
+                    wall.flipX = true;
+                else if (IsOpen(x + 1, y))
+                    wall.flipX = false;
+                else
+                    wall.flipX = (Hash(x, y) & 4) == 4;
+                if (IsOpen(x, y - 1))
+                    SpawnShadow(x, y - 1);
+            }
+
             return;
         }
 
-        if (!HasOpenNeighbour(x, y))
+        if (HasOpenNeighbour(x, y))
+        {
+            var top = SpawnTile("WallTop", wallTopSprite != null ? wallTopSprite : wallSprite, position, WallOrder);
+            if (top != null)
+                top.flipX = (Hash(x, y) & 4) == 4;
+            return;
+        }
+
+        if (jungleFillSprite == null)
             return;
 
-        var top = SpawnTile("WallTop", wallTopSprite != null ? wallTopSprite : wallSprite, position, WallOrder);
-        if (top != null)
-            top.flipX = (Hash(x, y) & 4) == 4;
+        var go = new GameObject("JungleMass");
+        go.transform.SetParent(tilesRoot, false);
+        go.transform.position = position;
+        var fill = go.AddComponent<SpriteRenderer>();
+        fill.sprite = jungleFillSprite;
+        fill.drawMode = SpriteDrawMode.Tiled;
+        fill.tileMode = SpriteTileMode.Continuous;
+        fill.size = new Vector2(cellSize, cellSize);
+        fill.sortingOrder = WallOrder - 1;
+        fill.color = new Color(0.85f, 0.92f, 0.82f);
+        fill.flipX = (Hash(x, y) & 8) == 8;
     }
 
     void SpawnSideShadow(int x, int y, int side)
@@ -347,12 +491,106 @@ public class GridBoard : MonoBehaviour
         var cell = GetCell(x, y);
         if (cell == GridCell.Exit)
             return !exitUnlocked;
-        return cell == GridCell.Void || cell == GridCell.Stone;
+        return cell == GridCell.Void || cell == GridCell.Stone || cell == GridCell.Boulder;
+    }
+
+    public bool HasBoulder(int x, int y) => GetCell(x, y) == GridCell.Boulder;
+
+    public bool CanPushBoulder(Vector2Int boulderCell, Vector2Int direction)
+    {
+        var landing = boulderCell + direction;
+        if (GetCell(boulderCell.x, boulderCell.y) != GridCell.Boulder || !InBounds(landing.x, landing.y))
+            return false;
+
+        var targetCell = GetCell(landing.x, landing.y);
+        if (targetCell == GridCell.Stone || targetCell == GridCell.Boulder || targetCell == GridCell.Void
+            || targetCell == GridCell.Dirt || targetCell == GridCell.RedGem)
+            return false;
+        return targetCell != GridCell.Exit || exitUnlocked;
+    }
+
+    public bool TryPushBoulder(Vector2Int boulderCell, Vector2Int direction, out Vector2Int landing)
+    {
+        landing = boulderCell + direction;
+        if (!CanPushBoulder(boulderCell, direction))
+            return false;
+
+        var targetCell = GetCell(landing.x, landing.y);
+
+        cells[boulderCell.x, boulderCell.y] = GridCell.Floor;
+        cells[landing.x, landing.y] = GridCell.Boulder;
+        if (boulderViews.TryGetValue(boulderCell, out var view) && view != null)
+        {
+            boulderViews.Remove(boulderCell);
+            boulderViews[landing] = view;
+            view.position = CellToWorld(landing.x, landing.y);
+        }
+
+        if (targetCell == GridCell.Fire)
+            ClearHazard(landing.x, landing.y);
+
+        if (world != null)
+            world.OnBoulderMoved(landing);
+        return true;
+    }
+
+    public bool TryCollectPurple(int x, int y, out GameObject view)
+    {
+        view = null;
+        if (!InBounds(x, y) || cells[x, y] != GridCell.PurpleGem)
+            return false;
+        cells[x, y] = GridCell.Floor;
+        var key = new Vector2Int(x, y);
+        if (gemViews.TryGetValue(key, out view))
+            gemViews.Remove(key);
+        return true;
+    }
+
+    public bool TryOpenChest(int x, int y, out int purpleAmount, out bool secret)
+    {
+        purpleAmount = 0;
+        secret = false;
+        if (!InBounds(x, y))
+            return false;
+        var cell = cells[x, y];
+        if (cell != GridCell.Chest && cell != GridCell.SecretChest)
+            return false;
+        secret = cell == GridCell.SecretChest;
+        purpleAmount = secret ? 8 : 4;
+        cells[x, y] = GridCell.Floor;
+        var key = new Vector2Int(x, y);
+        if (gemViews.TryGetValue(key, out var go) && go != null)
+            Destroy(go);
+        gemViews.Remove(key);
+        return true;
+    }
+
+    public void ClearHazard(int x, int y)
+    {
+        if (!InBounds(x, y))
+            return;
+        if (cells[x, y] != GridCell.Fire)
+            return;
+        cells[x, y] = GridCell.Floor;
+        var key = new Vector2Int(x, y);
+        if (gemViews.TryGetValue(key, out var go) && go != null)
+            Destroy(go);
+        gemViews.Remove(key);
     }
 
     public bool IsExit(int x, int y)
     {
         return GetCell(x, y) == GridCell.Exit;
+    }
+
+    public void BeginDirtCrack(int x, int y)
+    {
+        if (!InBounds(x, y) || cells[x, y] != GridCell.Dirt)
+            return;
+
+        var key = new Vector2Int(x, y);
+        if (dirtViews.TryGetValue(key, out var view) && view != null)
+            StartCoroutine(CrackDirt(view));
     }
 
     public bool TryDig(int x, int y)
@@ -363,7 +601,7 @@ public class GridBoard : MonoBehaviour
         cells[x, y] = GridCell.Floor;
         var key = new Vector2Int(x, y);
         if (dirtViews.TryGetValue(key, out var view) && view != null)
-            StartCoroutine(ShrinkAndDestroy(view));
+            StartCoroutine(ShrinkAndDestroy(view, 0.1f));
         dirtViews.Remove(key);
         return true;
     }
@@ -425,17 +663,38 @@ public class GridBoard : MonoBehaviour
         StartCoroutine(Pulse(doorView.transform, 1.08f, 0.4f));
     }
 
-    IEnumerator ShrinkAndDestroy(SpriteRenderer view)
+    IEnumerator CrackDirt(SpriteRenderer view)
     {
-        var start = view.transform.localScale;
-        var color = view.color;
+        if (view == null)
+            yield break;
+
+        var startScale = view.transform.localScale;
+        var origin = view.transform.position;
+        var baseColor = view.color;
         var t = 0f;
-        const float duration = 0.18f;
+        const float duration = 0.12f;
         while (t < duration && view != null)
         {
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / duration);
-            view.transform.localScale = start * (1f - 0.4f * k);
+            var wobble = Mathf.Sin(k * Mathf.PI * 3f) * 0.015f;
+            view.transform.localScale = startScale * (1f - 0.22f * k);
+            view.transform.position = origin + new Vector3(wobble, 0.02f * k, 0f);
+            view.color = Color.Lerp(baseColor, new Color(baseColor.r * 0.75f, baseColor.g * 0.75f, baseColor.b * 0.75f, baseColor.a), k);
+            yield return null;
+        }
+    }
+
+    IEnumerator ShrinkAndDestroy(SpriteRenderer view, float duration = 0.18f)
+    {
+        var start = view.transform.localScale;
+        var color = view.color;
+        var t = 0f;
+        while (t < duration && view != null)
+        {
+            t += Time.deltaTime;
+            var k = Mathf.Clamp01(t / duration);
+            view.transform.localScale = start * (1f - 0.55f * k);
             color.a = 1f - k;
             view.color = color;
             yield return null;

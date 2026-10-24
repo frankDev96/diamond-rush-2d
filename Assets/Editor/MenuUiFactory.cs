@@ -353,6 +353,14 @@ public static class MenuUiFactory
             "Assets/Scenes/Home.unity",
             "Assets/Scenes/WorldSelect.unity",
             "Assets/Scenes/GameplayLevel1.unity",
+            "Assets/Scenes/GameplayLevel2.unity",
+            "Assets/Scenes/GameplayLevel3.unity",
+            "Assets/Scenes/GameplayLevel4.unity",
+            "Assets/Scenes/GameplayLevel5.unity",
+            "Assets/Scenes/GameplayLevel6.unity",
+            "Assets/Scenes/GameplayLevel7.unity",
+            "Assets/Scenes/GameplayLevel8.unity",
+            "Assets/Scenes/GameplayLevel9.unity",
             "Assets/Scenes/SampleScene.unity"
         };
         var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>();

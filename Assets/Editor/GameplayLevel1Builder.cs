@@ -10,7 +10,7 @@ public static class GameplayLevel1Builder
 {
     const string ScenePath = "Assets/Scenes/GameplayLevel1.unity";
     const string LayoutPref = "DiamondRush.GameplayLevel1LayoutVersion";
-    const int LayoutVersion = 4;
+    const int LayoutVersion = 7;
     const string Home = MenuUiFactory.ArtFolder;
     const string Map = MenuUiFactory.MapArtFolder;
     const string Angkor = GameplayArtImporter.OutputFolder;
@@ -83,12 +83,12 @@ public static class GameplayLevel1Builder
         if (!GameplayArtImporter.HasProcessedArt())
             GameplayArtImporter.ProcessAll();
 
-        BuildScene();
+        BuildSceneForSpec(Level1Layout.Spec, ScenePath, LayoutPref, LayoutVersion);
     }
 
-    static void BuildScene()
+    public static void BuildSceneForSpec(GameplayLevelSpec spec, string scenePath, string layoutPref, int layoutVersion)
     {
-        var layoutErrors = LevelLayoutValidator.Validate(Level1Layout.Rows, Level1Layout.Width, Level1Layout.Height, Level1Layout.TotalReds);
+        var layoutErrors = LevelLayoutValidator.Validate(spec.Rows, spec.Width, spec.Height, spec.TotalReds);
         if (layoutErrors.Count > 0)
         {
             foreach (var error in layoutErrors)
@@ -121,11 +121,16 @@ public static class GameplayLevel1Builder
 
         var canvasGo = MenuUiFactory.CreateCanvas();
         var canvas = canvasGo.transform;
-        BuildVignette(canvas);
+        BuildJungleFrame(canvas);
         var exitIndicator = BuildExitIndicator(canvas, fit);
         var joystick = BuildJoystick(canvasGo.GetComponent<Canvas>());
-        var hud = BuildHud(canvas);
-        var tutorial = BuildTutorial(canvas);
+        var hud = BuildHud(canvas, spec);
+        var tutorial = BuildTutorial(canvas, spec);
+        var tutorialSo = new SerializedObject(tutorial);
+        MenuUiFactory.SetRef(tutorialSo, "board", board);
+        MenuUiFactory.SetRef(tutorialSo, "cameraFit", fit);
+        tutorialSo.ApplyModifiedPropertiesWithoutUndo();
+        var interactionHint = BuildInteractionHint(canvas, fit, board, player);
 
         var modalsGo = MenuUiFactory.CreateRect("Modals", canvas);
         MenuUiFactory.Stretch(modalsGo);
@@ -139,7 +144,6 @@ public static class GameplayLevel1Builder
         MenuUiFactory.SetRef(feedbackSo, "cameraFit", fit);
         MenuUiFactory.SetRef(feedbackSo, "worldCamera", camera);
         MenuUiFactory.SetRef(feedbackSo, "hud", hud);
-        MenuUiFactory.SetRef(feedbackSo, "dustSprite", Art("dust_puff.png"));
         MenuUiFactory.SetRef(feedbackSo, "dirtChunkSprite", Art("dirt_chunk.png"));
         feedbackSo.ApplyModifiedPropertiesWithoutUndo();
 
@@ -156,6 +160,8 @@ public static class GameplayLevel1Builder
         MenuUiFactory.SetRef(so, "exitIndicator", exitIndicator);
         MenuUiFactory.SetRef(so, "joystick", joystick);
         MenuUiFactory.SetRef(so, "tutorial", tutorial);
+        MenuUiFactory.SetRef(so, "interactionHint", interactionHint);
+        MenuUiFactory.SetRef(so, "world", board.GetComponent<GridWorldController>());
         MenuUiFactory.SetRef(so, "pauseMenu", pause);
         MenuUiFactory.SetRef(so, "inventory", inventory);
         MenuUiFactory.SetRef(so, "confirm", confirm);
@@ -163,11 +169,11 @@ public static class GameplayLevel1Builder
         so.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.MarkSceneDirty(scene);
-        EditorSceneManager.SaveScene(scene, ScenePath);
-        EditorPrefs.SetInt(LayoutPref, LayoutVersion);
+        EditorSceneManager.SaveScene(scene, scenePath);
+        EditorPrefs.SetInt(layoutPref, layoutVersion);
         MenuUiFactory.SetMenuBuildScenes();
         AssetDatabase.SaveAssets();
-        Debug.Log("Diamond Rush gameplay level 1 (v" + LayoutVersion + ") saved to " + ScenePath);
+        Debug.Log("Diamond Rush gameplay level " + spec.LevelIndex + " (v" + layoutVersion + ") saved to " + scenePath);
     }
 
     static Sprite Art(string file)
@@ -212,15 +218,27 @@ public static class GameplayLevel1Builder
         entities.SetParent(gridGo.transform, false);
 
         var board = gridGo.AddComponent<GridBoard>();
+        var world = gridGo.AddComponent<GridWorldController>();
         var so = new SerializedObject(board);
         MenuUiFactory.SetRef(so, "floorSprite", Art("floor_stone.png"));
         MenuUiFactory.SetRef(so, "floorAltSprite", Art("floor_stone_alt.png"));
         MenuUiFactory.SetRef(so, "floorMossSprite", Art("floor_moss.png"));
+        MenuUiFactory.SetRef(so, "floorCrackedSprite", Art("floor_cracked.png"));
         MenuUiFactory.SetRef(so, "dirtSprite", Art("dirt_soft.png"));
         MenuUiFactory.SetRef(so, "wallSprite", Art("wall_block.png"));
         MenuUiFactory.SetRef(so, "wallTopSprite", Art("wall_top.png"));
         MenuUiFactory.SetRef(so, "jungleFillSprite", Art("jungle_fill.png"));
         MenuUiFactory.SetRef(so, "gemSprite", Art("red_diamond.png"));
+        MenuUiFactory.SetRef(so, "purpleGemSprite", Art("icon_purple.png"));
+        MenuUiFactory.SetRef(so, "boulderSprite", Art("boulder_face.png"));
+        MenuUiFactory.SetRef(so, "chestSprite", Art("chest_wood.png"));
+        MenuUiFactory.SetRef(so, "secretChestSprite", Art("chest_secret.png"));
+        MenuUiFactory.SetRef(so, "fireSprite", Art("trap_fire.png"));
+        MenuUiFactory.SetRef(so, "spearSprite", Art("trap_spear.png"));
+        MenuUiFactory.SetRef(so, "checkpointSprite", Art("checkpoint_pad.png"));
+        var worldSo = new SerializedObject(world);
+        MenuUiFactory.SetRef(worldSo, "snakeSprite", Art("snake_green.png"));
+        worldSo.ApplyModifiedPropertiesWithoutUndo();
         MenuUiFactory.SetRef(so, "doorClosedSprite", Art("exit_door_closed.png"));
         MenuUiFactory.SetRef(so, "doorOpenSprite", Art("exit_door_open.png"));
         MenuUiFactory.SetRef(so, "tilesRoot", tiles);
@@ -242,18 +260,23 @@ public static class GameplayLevel1Builder
         var walkUp = GameplayArtImporter.LoadFrames("explorer_walk_up");
         renderer.sprite = walkUp.Length > 1 ? walkUp[1] : Art("explorer_up.png");
         renderer.sortingOrder = 10;
+        var animator = visual.AddComponent<Animator>();
+        animator.runtimeAnimatorController = null;
 
         var motor = playerGo.AddComponent<PlayerGridMotor>();
         var so = new SerializedObject(motor);
         MenuUiFactory.SetRef(so, "board", board);
         MenuUiFactory.SetRef(so, "visual", visual.transform);
         MenuUiFactory.SetRef(so, "spriteRenderer", renderer);
+        MenuUiFactory.SetRef(so, "animator", animator);
         MenuUiFactory.SetRef(so, "downSprite", Art("explorer_down.png"));
         MenuUiFactory.SetRef(so, "upSprite", Art("explorer_up.png"));
         MenuUiFactory.SetRef(so, "sideSprite", Art("explorer_side.png"));
         SetSprites(so, "walkDown", GameplayArtImporter.LoadFrames("explorer_walk_down"));
         SetSprites(so, "walkUp", walkUp);
         SetSprites(so, "walkSide", GameplayArtImporter.LoadFrames("explorer_walk_side"));
+        so.FindProperty("stepDuration").floatValue = 0.18f;
+        so.FindProperty("walkSpeedScale").floatValue = 0.5f;
         so.ApplyModifiedPropertiesWithoutUndo();
         return motor;
     }
@@ -289,11 +312,13 @@ public static class GameplayLevel1Builder
 
     // ---------- Screen overlays ----------
 
-    static void BuildVignette(Transform canvas)
+    static void BuildJungleFrame(Transform canvas)
     {
+        // Screen-edge leaves/vines like the Level 1 mockup (transparent centre, gameplay stays visible).
         var vignette = Decor("JungleVignette", canvas, Art("jungle_vignette_16x9.png"));
         MenuUiFactory.Stretch(vignette.rectTransform);
-        vignette.color = new Color(1f, 1f, 1f, 0.85f);
+        vignette.color = new Color(1f, 1f, 1f, 0.92f);
+        vignette.raycastTarget = false;
     }
 
     static ExitIndicator BuildExitIndicator(Transform canvas, GameplayCameraFit fit)
@@ -315,24 +340,24 @@ public static class GameplayLevel1Builder
 
     // ---------- HUD ----------
 
-    static GameplayHudController BuildHud(Transform canvas)
+    static GameplayHudController BuildHud(Transform canvas, GameplayLevelSpec spec)
     {
         var hudRect = MenuUiFactory.CreateRect("GameplayHud", canvas);
         MenuUiFactory.Stretch(hudRect);
 
         var banner = SlicedPanel("TitleBanner", hudRect);
         MenuUiFactory.Place(banner.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -16f), new Vector2(680f, 104f));
-        var worldLine = MenuUiFactory.CreateText("WorldLine", banner.transform, "WORLD 1: ANGKOR WAT - LEVEL 1", 20, FontStyles.Bold, MenuUiFactory.Title, TextAlignmentOptions.Left);
+        var worldLine = MenuUiFactory.CreateText("WorldLine", banner.transform, "WORLD 1: ANGKOR WAT - LEVEL " + spec.LevelIndex, 20, FontStyles.Bold, MenuUiFactory.Title, TextAlignmentOptions.Left);
         MenuUiFactory.Place(worldLine.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -12f), new Vector2(620f, 28f));
         MenuUiFactory.ApplyOutline(worldLine, 0.15f);
-        var stageLine = MenuUiFactory.CreateText("StageLine", banner.transform, Level1Layout.StageName, 36, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Left);
+        var stageLine = MenuUiFactory.CreateText("StageLine", banner.transform, spec.StageName, 36, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Left);
         MenuUiFactory.Place(stageLine.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -44f), new Vector2(620f, 44f));
         MenuUiFactory.ApplyOutline(stageLine, 0.2f);
 
         var chipRow = MenuUiFactory.CreateRect("ChipRow", hudRect);
         MenuUiFactory.Place(chipRow, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -18f), new Vector2(760f, 68f));
         var required = CreateHudChip(chipRow, "RequiredReds", "0/3", Art("icon_red.png"), Color.white, new Vector2(-570f, 0f));
-        var optional = CreateHudChip(chipRow, "OptionalReds", "0/" + Level1Layout.ExtraReds, Art("icon_red.png"), new Color(1f, 1f, 1f, 0.55f), new Vector2(-380f, 0f));
+        var optional = CreateHudChip(chipRow, "OptionalReds", "0/" + spec.ExtraReds, Art("icon_red.png"), new Color(1f, 1f, 1f, 0.55f), new Vector2(-380f, 0f));
         var purple = CreateHudChip(chipRow, "Purple", "0", Art("icon_purple.png"), Color.white, new Vector2(-190f, 0f));
         var lives = CreateHudChip(chipRow, "Lives", "x3", Art("icon_lives_head.png"), Color.white, Vector2.zero);
 
@@ -367,7 +392,10 @@ public static class GameplayLevel1Builder
 
     static HudChip CreateHudChip(RectTransform parent, string name, string value, Sprite iconSprite, Color iconTint, Vector2 pos)
     {
-        var chip = Decor(name, parent, MenuUiFactory.SpriteAt("hud_chip.png", Map));
+        var chipSprite = File.Exists(Map + "hud_plaque_gold.png")
+            ? MenuUiFactory.SpriteAt("hud_plaque_gold.png", Map)
+            : MenuUiFactory.SpriteAt("hud_chip.png", Map);
+        var chip = Decor(name, parent, chipSprite);
         MenuUiFactory.Place(chip.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), pos, new Vector2(172f, 60f));
         var icon = Decor("Icon", chip.transform, iconSprite);
         icon.preserveAspect = true;
@@ -466,7 +494,27 @@ public static class GameplayLevel1Builder
 
     // ---------- Intro + hint ----------
 
-    static TutorialOverlay BuildTutorial(Transform canvas)
+    static InteractionHintOverlay BuildInteractionHint(Transform canvas, GameplayCameraFit fit, GridBoard board, PlayerGridMotor player)
+    {
+        var area = MenuUiFactory.CreateRect("InteractionHint", canvas);
+        MenuUiFactory.Stretch(area);
+        var arrow = Decor("Arrow", area, Art("exit_arrow.png"));
+        arrow.preserveAspect = true;
+        arrow.color = new Color(1f, 1f, 1f, 0.85f);
+        MenuUiFactory.Place(arrow.rectTransform, Center, Center, Vector2.zero, new Vector2(72f, 72f));
+
+        var hint = area.gameObject.AddComponent<InteractionHintOverlay>();
+        var so = new SerializedObject(hint);
+        MenuUiFactory.SetRef(so, "board", board);
+        MenuUiFactory.SetRef(so, "player", player);
+        MenuUiFactory.SetRef(so, "cameraFit", fit);
+        MenuUiFactory.SetRef(so, "arrow", arrow.rectTransform);
+        MenuUiFactory.SetRef(so, "arrowImage", arrow);
+        so.ApplyModifiedPropertiesWithoutUndo();
+        return hint;
+    }
+
+    static TutorialOverlay BuildTutorial(Transform canvas, GameplayLevelSpec spec)
     {
         var root = MenuUiFactory.CreateRect("Tutorial", canvas);
         MenuUiFactory.Stretch(root);
@@ -477,7 +525,7 @@ public static class GameplayLevel1Builder
         var level = MenuUiFactory.CreateText("Level", card.transform, "LEVEL 1", 30, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Center);
         MenuUiFactory.Place(level.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(760f, 40f));
         MenuUiFactory.ApplyOutline(level, 0.2f);
-        var stage = MenuUiFactory.CreateText("Stage", card.transform, Level1Layout.StageName, 64, FontStyles.Bold, MenuUiFactory.Title, TextAlignmentOptions.Center);
+        var stage = MenuUiFactory.CreateText("Stage", card.transform, spec.StageName, 64, FontStyles.Bold, MenuUiFactory.Title, TextAlignmentOptions.Center);
         MenuUiFactory.Place(stage.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(760f, 80f));
         MenuUiFactory.ApplyOutline(stage, 0.22f);
 
@@ -487,7 +535,7 @@ public static class GameplayLevel1Builder
         hintBg.color = new Color(0.08f, 0.06f, 0.04f, 0.82f);
         hintBg.raycastTarget = false;
         var hintGroup = hintRect.gameObject.AddComponent<CanvasGroup>();
-        var hintText = MenuUiFactory.CreateText("Message", hintRect, "Move to Dig!", 40, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Center);
+        var hintText = MenuUiFactory.CreateText("Message", hintRect, spec.TutorialHint, 40, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Center);
         MenuUiFactory.ApplyOutline(hintText, 0.2f);
         MenuUiFactory.Stretch(hintText.rectTransform, 16f, 6f, 16f, 6f);
 
@@ -629,6 +677,7 @@ public static class GameplayLevel1Builder
         var toolHint = MenuUiFactory.CreateText("Locked", slot, "Found in Level 10", 24, FontStyles.Italic, new Color(0.27f, 0.16f, 0.08f, 0.55f), TextAlignmentOptions.Right);
         MenuUiFactory.Place(toolHint.rectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-24f, 0f), new Vector2(300f, 40f));
 
+        var ret = CreateBoardButton(modal.board, "button_continue.png", "RETURN", new Vector2(0f, -140f), new Vector2(320f, 88f));
         var close = CreateBoardButton(modal.board, "button_wood.png", "CLOSE", new Vector2(0f, -232f), new Vector2(320f, 100f));
 
         var inventory = modals.gameObject.AddComponent<InventoryModal>();
@@ -639,6 +688,7 @@ public static class GameplayLevel1Builder
         MenuUiFactory.SetRef(so, "redsValue", reds);
         MenuUiFactory.SetRef(so, "purpleValue", purple);
         MenuUiFactory.SetRef(so, "livesValue", lives);
+        MenuUiFactory.SetRef(so, "returnButton", ret);
         MenuUiFactory.SetRef(so, "closeButton", close);
         MenuUiFactory.SetRef(so, "dimButton", modal.dim);
         so.ApplyModifiedPropertiesWithoutUndo();

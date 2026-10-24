@@ -76,12 +76,16 @@ public class GameplayHudController : MonoBehaviour
             requiredChip.localScale = Vector3.one * (1f + 0.22f * k);
             if (requiredChipImage != null)
                 requiredChipImage.color = Color.Lerp(Color.white, flash, k);
+            if (requiredRedsLabel != null)
+                requiredRedsLabel.transform.localScale = Vector3.one * (1f + 0.18f * k);
             yield return null;
         }
 
         requiredChip.localScale = Vector3.one;
         if (requiredChipImage != null)
             requiredChipImage.color = Color.white;
+        if (requiredRedsLabel != null)
+            requiredRedsLabel.transform.localScale = Vector3.one;
         punchRoutine = null;
     }
 }

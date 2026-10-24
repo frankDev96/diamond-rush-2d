@@ -37,7 +37,8 @@ public static class LevelLayoutValidator
                     reds.Add(new Vector2Int(x, y));
                 else if (c == 'E')
                     exits++;
-                else if (c != '#' && c != '.' && c != 'd')
+                else if (c != '#' && c != '.' && c != 'd' && c != 'r' && c != 'g' && c != 'B' && c != 'T' && c != 't'
+                         && c != 'F' && c != '!' && c != 'K' && c != 'S' && c != 'P' && c != 'E')
                     errors.Add("Unknown tile '" + c + "' at " + x + "," + y + ".");
 
                 var border = x == 0 || y == 0 || x == width - 1 || y == height - 1;
@@ -88,7 +89,7 @@ public static class LevelLayoutValidator
                 if (next.y < 0 || next.y >= rows.Length || next.x < 0 || next.x >= rows[next.y].Length)
                     continue;
                 var c = rows[next.y][next.x];
-                if (c == '#' || (c == 'd' && !passDirt) || !seen.Add(next))
+                if (c == '#' || c == 'B' || (c == 'd' && !passDirt) || !seen.Add(next))
                     continue;
                 if (c != 'E')
                     queue.Enqueue(next);

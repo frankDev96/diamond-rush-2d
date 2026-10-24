@@ -21,6 +21,8 @@ public class GameplaySessionController : MonoBehaviour
     [SerializeField] ExitIndicator exitIndicator;
     [SerializeField] FloatingJoystick joystick;
     [SerializeField] TutorialOverlay tutorial;
+    [SerializeField] InteractionHintOverlay interactionHint;
+    [SerializeField] GridWorldController world;
     [SerializeField] PauseMenuController pauseMenu;
     [SerializeField] InventoryModal inventory;
     [SerializeField] ConfirmDialog confirm;
@@ -28,12 +30,14 @@ public class GameplaySessionController : MonoBehaviour
     [SerializeField] float completeDelay = 0.6f;
     [SerializeField] float doorRevealHold = 1.2f;
 
-    const int RedsRequired = Level1Layout.RequiredReds;
-    const int ExtraReds = Level1Layout.ExtraReds;
+    GameplayLevelSpec levelSpec;
+    int RedsRequired => levelSpec.RequiredReds;
+    int ExtraReds => levelSpec.ExtraReds;
 
     int redsCollected;
     int purpleWallet;
     int lives = 3;
+    Vector2Int respawnCell;
     int modalCount;
     int audioPauseCount;
     SessionState state = SessionState.Playing;
@@ -51,14 +55,18 @@ public class GameplaySessionController : MonoBehaviour
         ProfileSave.EnsureSeeded();
         GameSettings.Apply();
 
-        board.BuildFromRows(Level1Layout.Rows, RedsRequired);
+        levelSpec = GameplayLevelCatalog.Get(LevelIndex);
+        board.BuildFromSpec(levelSpec);
+        respawnCell = board.Spawn;
+        if (world == null)
+            world = board.GetComponent<GridWorldController>();
         player.Initialize(board, board.Spawn);
         if (cameraFit != null)
             cameraFit.SnapToTarget();
 
         if (hud != null)
         {
-            hud.SetStage(LevelIndex, Level1Layout.StageName);
+            hud.SetStage(LevelIndex, levelSpec.StageName);
             if (hud.PauseButton != null)
                 hud.PauseButton.onClick.AddListener(OpenPause);
             if (hud.InventoryButton != null)
@@ -72,7 +80,7 @@ public class GameplaySessionController : MonoBehaviour
     void Start()
     {
         if (tutorial != null)
-            tutorial.Begin(LevelIndex, Level1Layout.StageName);
+            tutorial.Begin(LevelIndex, levelSpec.StageName, levelSpec.TutorialHint);
     }
 
     void Update()
@@ -150,19 +158,23 @@ public class GameplaySessionController : MonoBehaviour
         confirm.Show("Restart this level?", Restart);
     }
 
-    public void OnStepStarted(Vector3 from)
+    public void OnFootPlant(Vector3 feetWorld)
     {
         if (feedback != null)
-            feedback.SpawnDust(from);
+            feedback.SpawnFootstep(feetWorld);
     }
 
-    public void OnBlockedMove(Vector2Int target, Vector2Int direction)
+    // Locked exit only — stone walls stop silently with no SFX or camera bump.
+    public void OnBlockedExit()
     {
-        GameSfx.Instance?.PlayHit();
-        if (feedback != null)
-            feedback.Bump(direction);
-        if (board.IsExit(target.x, target.y) && !board.ExitUnlocked)
+        if (board != null && !board.ExitUnlocked)
             board.FlashSlots();
+    }
+
+    public void OnDigLungeStart(Vector3 dirtFace, Vector2Int facing, Transform explorerVisual)
+    {
+        if (feedback != null)
+            feedback.PlayDigLunge(dirtFace, facing, explorerVisual);
     }
 
     public void OnDug(Vector3 position)
@@ -172,6 +184,64 @@ public class GameplaySessionController : MonoBehaviour
             feedback.DigBurst(position);
         if (tutorial != null)
             tutorial.NotifyDug();
+        if (interactionHint != null)
+            interactionHint.NotifyDug();
+    }
+
+    public void OnBoulderPushed(Vector3 at)
+    {
+        if (feedback != null)
+            feedback.SpawnFootstep(at);
+    }
+
+    public void OnEnteredCell(Vector2Int cell, GridCell type)
+    {
+        if (type == GridCell.PurpleGem && board.TryCollectPurple(cell.x, cell.y, out var gem))
+        {
+            purpleWallet += 3;
+            RefreshHud();
+            GameSfx.Instance?.PlayGemCollect();
+            if (feedback != null)
+                feedback.CollectGem(gem, () => { if (gem != null) Destroy(gem); });
+        }
+        else if (type == GridCell.Chest || type == GridCell.SecretChest)
+        {
+            if (board.TryOpenChest(cell.x, cell.y, out var amount, out _))
+            {
+                purpleWallet += amount;
+                RefreshHud();
+                GameSfx.Instance?.PlayGemCollect();
+            }
+        }
+        else if (type == GridCell.Checkpoint)
+        {
+            respawnCell = cell;
+            if (world != null)
+                world.SetCheckpoint(cell);
+        }
+
+        if (world == null)
+            return;
+        if (world.IsSnakeAt(cell) || world.IsSpearDanger(cell) || world.IsFireAt(cell))
+            OnPlayerHit();
+    }
+
+    void OnPlayerHit()
+    {
+        lives = Mathf.Max(0, lives - 1);
+        RefreshHud();
+        GameSfx.Instance?.PlayHit();
+        if (feedback != null)
+            feedback.Bump(Vector2Int.zero);
+        if (lives <= 0)
+        {
+            AskRestart();
+            return;
+        }
+
+        player.Initialize(board, respawnCell);
+        if (cameraFit != null)
+            cameraFit.SnapToTarget();
     }
 
     public void OnGemCell(Vector2Int cell)
@@ -237,7 +307,7 @@ public class GameplaySessionController : MonoBehaviour
     {
         yield return new WaitForSeconds(completeDelay);
         if (completePanel != null)
-            completePanel.Show(Level1Layout.StageName, RequiredCollected, RedsRequired, ExtraCollected, ExtraReds);
+            completePanel.Show(levelSpec.StageName, RequiredCollected, RedsRequired, ExtraCollected, ExtraReds);
         else
             LeaveToWorldSelect();
     }
@@ -246,6 +316,15 @@ public class GameplaySessionController : MonoBehaviour
     {
         if (hud != null)
             hud.SetCounters(RequiredCollected, RedsRequired, ExtraCollected, ExtraReds, purpleWallet, lives);
+    }
+
+    public void ReturnToCheckpoint()
+    {
+        if (respawnCell.x < 0 || player == null || board == null)
+            return;
+        player.Initialize(board, respawnCell);
+        if (cameraFit != null)
+            cameraFit.SnapToTarget();
     }
 
     public void Restart()
