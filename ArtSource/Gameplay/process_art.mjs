@@ -13,13 +13,13 @@ const outputDir = path.join(root, 'Assets/Art/Gameplay/Angkor');
 const FRAME_W = 160, FRAME_H = 256;
 
 const entries = [
-  ['floor_stone_single.jpg', 'floor_stone.png', 'full', 128],
-  ['floor_stone_single.jpg', 'floor_stone_alt.png', 'full', 128, { rotate90: true }],
-  ['floor_moss.jpg', 'floor_moss.png', 'full', 128, { inset: 0.01 }],
+  ['angkor_tile_native.png', 'floor_stone.png', 'full', 128, { cropTop: 0.42, seamless: 0.14 }],
+  ['angkor_tile_native.png', 'floor_stone_alt.png', 'full', 128, { cropTop: 0.42, seamless: 0.14, rotate90: true }],
+  ['angkor_tile_native.png', 'floor_moss.png', 'full', 128, { cropTop: 0.68, seamless: 0.14 }],
   ['dirt_soft.jpg', 'dirt_soft.png', 'full', 128],
-  ['wall_block_full.jpg', 'wall_block.png', 'full', 128],
-  ['wall_top.jpg', 'wall_top.png', 'full', 128, { inset: 0.02, seamless: 0.18 }],
-  ['jungle_fill.jpg', 'jungle_fill.png', 'full', 256, { seamless: 0.2 }],
+  ['angkor_tile_native.png', 'wall_block.png', 'full', 128],
+  ['angkor_tile_native.png', 'wall_top.png', 'full', 128, { cropTop: 0.45, seamless: 0.16 }],
+  ['angkor_tile_native.png', 'jungle_fill.png', 'full', 256, { cropTop: 0.45, seamless: 0.18 }],
   ['red_diamond.jpg', 'red_diamond.png', 'key', 128],
   ['exit_door_closed.jpg', 'exit_door_closed.png', 'key', 384],
   ['exit_door_open.jpg', 'exit_door_open.png', 'key', 384],
@@ -44,7 +44,7 @@ const entries = [
   ['fx_dust_dirt.jpg', 'dirt_chunk.png', 'right', 64],
 ];
 
-function readJpeg(file) {
+function readRaster(file) {
   const tmp = path.join(os.tmpdir(), `dr_${path.basename(file)}.bmp`);
   execFileSync('sips', ['-s', 'format', 'bmp', file, '--out', tmp], { stdio: 'ignore' });
   const buf = fs.readFileSync(tmp);
@@ -255,13 +255,17 @@ const only = process.argv.slice(2);
 fs.mkdirSync(outputDir, { recursive: true });
 for (const [source, output, mode, size, opts = {}] of entries) {
   if (only.length && !only.some(o => source.startsWith(o) || output.startsWith(o))) continue;
-  let img = readJpeg(path.join(sourceDir, source));
+  let img = readRaster(path.join(sourceDir, source));
   if (mode === 'grid2x2') { processSheet(img, output); continue; }
   if (mode === 'left') img = crop(img, 0, 0, Math.floor(img.width / 2), img.height);
   if (mode === 'right') img = crop(img, Math.floor(img.width / 2), 0, Math.floor(img.width / 2), img.height);
   if (opts.inset) {
     const dx = Math.round(img.width * opts.inset), dy = Math.round(img.height * opts.inset);
     img = crop(img, dx, dy, img.width - dx * 2, img.height - dy * 2);
+  }
+  if (opts.cropTop > 0 && opts.cropTop < 1) {
+    const keepH = Math.max(1, Math.round(img.height * opts.cropTop));
+    img = crop(img, 0, 0, img.width, keepH);
   }
   if (mode !== 'full') {
     keyImage(img, mode === 'keycenter' ? (Math.floor(img.height / 2) * img.width + Math.floor(img.width / 2)) * 4 : 0);

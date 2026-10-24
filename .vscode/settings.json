@@ -68,5 +68,8 @@
         "*.slnx": "*.csproj"
     },
     "dotnet.defaultSolution": "DiamondRush.slnx",
-    "dotnet.enableWorkspaceBasedDevelopment": false
+    "dotnet.enableWorkspaceBasedDevelopment": false,
+    "git.path": "/opt/homebrew/bin/git",
+    "git.autoRepositoryDetection": true,
+    "git.scanRepositories": true
 }

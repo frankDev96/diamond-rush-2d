@@ -19,6 +19,7 @@ Procedures used to build Angkor Level 1 (tunnel maze, follow camera, walk cycle)
 
 - Generate with the `GenerateImage` tool on flat **#FF00FF magenta** (use #00FF00 green when the asset contains purple). Ask for thick dark outlines, cartoon style, oblique top-down view (walls show a front face, characters stand upright).
 - Save sources as `ArtSource/Gameplay/Angkor/<name>.jpg`. Processed PNGs go to `Assets/Art/Gameplay/Angkor/`.
+- World 1 stone look: `angkor_tile_native.png` (oblique block) feeds `wall_block` whole and `floor_*` / `wall_top` / `jungle_fill` via `cropTop` + seamless in `GameplayArtImporter` (re-run `process_art.mjs` after replacing the PNG).
 - **Animation sheets**: one 1024x1024 image, 2x2 grid, one direction per sheet (down, up, side facing right; left = side mirrored). Frame order TL, TR, BL, BR = contact, passing, contact, passing. Name the poses explicitly in the prompt ("wide stride", "upright passing pose") or every frame comes out mid-stride; regenerate if so.
 - Tileable textures: ask for "seamless, tileable, no border". If a dark border appears, use `inset`; if it doesn't tile, use `seamless`.
 - Screen frames (vignettes) have content in the corners, so the corner pixel is not the background. Use `KeyCenter`.

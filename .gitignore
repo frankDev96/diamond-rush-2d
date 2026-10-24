@@ -44,3 +44,4 @@ crashlytics-buildid.txt
 *.app
 
 .DS_Store
+.vscode/

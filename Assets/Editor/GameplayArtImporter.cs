@@ -31,6 +31,7 @@ public static class GameplayArtImporter
         public bool rotate90;
         public float clearCenter;
         public float inset;
+        public float cropTop;
         public float seamless;
         public bool tiled;
         public bool feetPivot;
@@ -60,13 +61,13 @@ public static class GameplayArtImporter
     // Keep in sync with ArtSource/Gameplay/process_art.mjs.
     static readonly Entry[] Entries =
     {
-        new Entry("floor_stone_single.jpg", "floor_stone.png", Mode.Full, 128),
-        new Entry("floor_stone_single.jpg", "floor_stone_alt.png", Mode.Full, 128) { rotate90 = true },
-        new Entry("floor_moss.jpg", "floor_moss.png", Mode.Full, 128) { inset = 0.01f },
+        new Entry("angkor_tile_native.png", "floor_stone.png", Mode.Full, 128) { cropTop = 0.42f, seamless = 0.14f },
+        new Entry("angkor_tile_native.png", "floor_stone_alt.png", Mode.Full, 128) { cropTop = 0.42f, seamless = 0.14f, rotate90 = true },
+        new Entry("angkor_tile_native.png", "floor_moss.png", Mode.Full, 128) { cropTop = 0.68f, seamless = 0.14f },
         new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Full, 128),
-        new Entry("wall_block_full.jpg", "wall_block.png", Mode.Full, 128),
-        new Entry("wall_top.jpg", "wall_top.png", Mode.Full, 128) { inset = 0.02f, seamless = 0.18f },
-        new Entry("jungle_fill.jpg", "jungle_fill.png", Mode.Full, 256) { seamless = 0.2f, tiled = true },
+        new Entry("angkor_tile_native.png", "wall_block.png", Mode.Full, 128),
+        new Entry("angkor_tile_native.png", "wall_top.png", Mode.Full, 128) { cropTop = 0.45f, seamless = 0.16f },
+        new Entry("angkor_tile_native.png", "jungle_fill.png", Mode.Full, 256) { cropTop = 0.45f, seamless = 0.18f, tiled = true },
         new Entry("red_diamond.jpg", "red_diamond.png", Mode.Key, 128),
         new Entry("exit_door_closed.jpg", "exit_door_closed.png", Mode.Key, 384),
         new Entry("exit_door_open.jpg", "exit_door_open.png", Mode.Key, 384),
@@ -205,6 +206,13 @@ public static class GameplayArtImporter
             var dx = Mathf.RoundToInt(image.width * entry.inset);
             var dy = Mathf.RoundToInt(image.height * entry.inset);
             image = Crop(image, dx, dy, image.width - dx * 2, image.height - dy * 2);
+        }
+
+        if (entry.cropTop > 0f && entry.cropTop < 1f)
+        {
+            var keepH = Mathf.Max(1, Mathf.RoundToInt(image.height * entry.cropTop));
+            var y0 = image.height - keepH;
+            image = Crop(image, 0, y0, image.width, keepH);
         }
 
         if (entry.mode != Mode.Full)

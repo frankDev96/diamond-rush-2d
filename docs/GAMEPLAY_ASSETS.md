@@ -19,9 +19,9 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 
 | File | Pixels | Source | Mode | Use |
 | --- | --- | --- | --- | --- |
-| `floor_stone.png` | 128×128 | `floor_stone_single.jpg` | Full | Base floor on every open cell. Random X flip by cell hash. |
-| `floor_stone_alt.png` | 128×128 | `floor_stone_single.jpg` | Full, rotated 90° | Floor variant (~42%). |
-| `floor_moss.png` | 128×128 | `floor_moss.jpg` | Full | Floor variant with moss in the cracks (~18%). |
+| `floor_stone.png` | 128×128 | `angkor_tile_native.png` | Full, crop top + seamless | Sandy cap from the native oblique wall tile. Random X flip by cell hash. |
+| `floor_stone_alt.png` | 128×128 | `angkor_tile_native.png` | Full, rotated 90° | Floor variant (~42%). |
+| `floor_moss.png` | 128×128 | `angkor_tile_native.png` | Full, deeper crop | Moss/vine band from the same tile (~18%). |
 | `floor_cracked.png` | 128×128 | procedural (`generate_extra_art.mjs`) | Full | Cracked stone variant (~10%). |
 | `boulder_face.png` | 128×128 | procedural | Full | Pushable boulder (~0.92 cells). |
 | `snake_green.png` | 128×128 | procedural | Full | Patrolling snake (`GridWorldController`). |
@@ -29,9 +29,9 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 | `trap_fire.png` / `trap_spear.png` | 128×128 | procedural | Full | Fire damage; spear toggles every ~0.7 s. |
 | `checkpoint_pad.png` | 128×128 | procedural | Full | Sets respawn; backpack **RETURN** from level 7+. |
 | `dirt_soft.png` | 128×128 | `dirt_soft.jpg` | Full | Soft dirt over floor; shrinks + fades when dug. |
-| `wall_block.png` | 128×128 | `wall_block_full.jpg` | Full | Wall cell with an **open cell below**: moss top (upper 60%) + brick front face (lower 40%). Casts a 0.24-cell shadow strip onto the cell below. |
-| `wall_top.png` | 128×128, seamless | `wall_top.jpg` | Full | Wall cell whose cell below is **also wall**: mossy stone top only, no face. |
-| `jungle_fill.png` | 256×256, seamless | `jungle_fill.jpg` | Full, tiled | Solid cells with no open neighbour within 1 cell, and the backdrop beyond the board (board + 12 cells each side). Drawn in Tiled mode, 2 units per repeat. |
+| `wall_block.png` | 128×82 (scaled to cell) | `angkor_tile_native.png` | Full | Oblique mossy block face at tunnel edges. Casts a 0.24-cell shadow strip onto the cell below. |
+| `wall_top.png` | 128×128, seamless | `angkor_tile_native.png` | Full | Inner wall mass: seamless sandy cap crop. |
+| `jungle_fill.png` | 256×256, seamless | `angkor_tile_native.png` | Full, tiled | Tiled cap texture for deep stone (green-tinted in `GridBoard`). |
 
 ## Exit and pickups
 
@@ -90,8 +90,6 @@ Runtime-generated: soft radial circle (glows, shadows, bursts) and a white squar
 | Source | Prompt essentials |
 | --- | --- |
 | `explorer_walk_*.jpg` | Same explorer as `explorer_*.jpg` (brown fedora, tan shirt, backpack, brown boots). 2×2 grid of four walk frames, identical scale and baseline, full body, centred in each quadrant, flat magenta background, no shadows, no text. |
-| `wall_top.jpg` | Seamless square tile, overhead view of mossy grey temple stone blocks, no front face, edge-to-edge. |
-| `jungle_fill.jpg` | Seamless square tile, dense dark-green jungle canopy and leaves seen from above, edge-to-edge. |
-| `floor_moss.jpg` | Single grey stone floor slab like `floor_stone`, moss in the cracks, edge-to-edge. |
+| `angkor_tile_native.png` | Small oblique Angkor block (sandy cap + moss/vine face). `cropTop` + seamless in `GameplayArtImporter` derive floor, wall top, and fill from the same art. |
 | `jungle_vignette_16x9.jpg` | 16:9 frame of jungle leaves and vines hugging all four edges, flat magenta centre filling ~80% of the image. |
 | `exit_arrow.jpg` | Chunky gold arrow pointing right with dark outline, flat magenta background. |

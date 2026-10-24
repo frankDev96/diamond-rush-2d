@@ -70,6 +70,7 @@ public class PlayerGridMotor : MonoBehaviour
     Vector3 visualBaseLocalPosition;
     Vector3 visualBaseLocalScale;
     Transform shadowTransform;
+    SpriteRenderer shadowRenderer;
     Vector3 shadowBaseScale;
     bool visualBaselineCached;
     float cornerSlideVisual;
@@ -104,10 +105,10 @@ public class PlayerGridMotor : MonoBehaviour
     {
         CacheVisualBaseline();
         var feet = transform.position + Vector3.up * (visualBaseLocalPosition.y + 0.03f);
-        var shadow = GameplaySprites.Spawn("Shadow", transform, GameplaySprites.SoftCircle, feet, 0.52f, 9);
-        shadowTransform = shadow.transform;
+        shadowRenderer = GameplaySprites.SpawnOval("Shadow", transform, GameplaySprites.OvalShadow, feet, 0.44f, 0.18f, 9);
+        shadowTransform = shadowRenderer.transform;
         shadowBaseScale = shadowTransform.localScale;
-        shadow.color = new Color(0f, 0f, 0f, 0.42f);
+        shadowRenderer.color = new Color(0f, 0f, 0f, 0.38f);
     }
 
     public void Initialize(GridBoard gridBoard, Vector2Int spawn)
@@ -169,13 +170,7 @@ public class PlayerGridMotor : MonoBehaviour
         }
 
         var primary = CardinalFromRaw(raw);
-        if (CanStep(primary))
-        {
-            cornerSlideVisual = Mathf.MoveTowards(cornerSlideVisual, 0f, Time.deltaTime * 6f);
-            return;
-        }
-
-        if (!IsStoneClip(primary))
+        if (CanStep(primary) || !IsStoneClip(primary))
         {
             cornerSlideVisual = Mathf.MoveTowards(cornerSlideVisual, 0f, Time.deltaTime * 6f);
             return;
@@ -189,7 +184,7 @@ public class PlayerGridMotor : MonoBehaviour
         }
 
         cornerSlideDir = slide;
-        cornerSlideVisual = Mathf.MoveTowards(cornerSlideVisual, cellSlideAmount(raw, primary, slide), Time.deltaTime * 2.2f);
+        cornerSlideVisual = Mathf.MoveTowards(cornerSlideVisual, cellSlideAmount(raw, primary, slide), Time.deltaTime * 3.5f);
         visual.localPosition = visualBaseLocalPosition + (Vector3)(Vector2)slide * cornerSlideVisual;
     }
 
@@ -197,7 +192,6 @@ public class PlayerGridMotor : MonoBehaviour
     {
         var norm = raw.normalized;
         var slideVec = new Vector2(slide.x, slide.y);
-        var blockedVec = new Vector2(blocked.x, blocked.y);
         var blend = Mathf.Clamp01((Vector2.Dot(norm, slideVec) - cornerAssist * 0.35f) / (1f - cornerAssist));
         return Mathf.Lerp(0.04f, cellSize * cornerAssist * 0.45f, blend);
     }
@@ -273,7 +267,8 @@ public class PlayerGridMotor : MonoBehaviour
             return false;
         if (!board.IsBlocked(target.x, target.y))
             return false;
-        return board.GetCell(target.x, target.y) == GridCell.Stone;
+        var cell = board.GetCell(target.x, target.y);
+        return cell == GridCell.Stone || cell == GridCell.Void;
     }
 
     Vector2Int TryCornerNudge(Vector2 raw, Vector2Int blockedPrimary)
@@ -291,44 +286,41 @@ public class PlayerGridMotor : MonoBehaviour
             b = Vector2Int.left;
         }
 
-        var norm = raw.normalized;
-        var scoreA = Vector2.Dot(norm, new Vector2(a.x, a.y));
-        var scoreB = Vector2.Dot(norm, new Vector2(b.x, b.y));
-        var first = scoreA >= scoreB ? a : b;
-        var second = scoreA >= scoreB ? b : a;
+        if (CornerRayFavorsSlide(raw, blockedPrimary, a, b, out var slideOption))
+            return slideOption;
 
-        var nearCorner = CornerRayFavorsSlide(raw, blockedPrimary, first, second);
-        if (nearCorner || Mathf.Abs(scoreA) >= cornerAssist || Mathf.Abs(scoreB) >= cornerAssist)
-        {
-            if (CanStep(first))
-                return first;
-            if (CanStep(second))
-                return second;
-        }
-
-        if (CanStep(first))
-            return first;
-        if (CanStep(second))
-            return second;
         return blockedPrimary;
     }
 
-    bool CornerRayFavorsSlide(Vector2 raw, Vector2Int blockedPrimary, Vector2Int optionA, Vector2Int optionB)
+    bool CornerRayFavorsSlide(Vector2 raw, Vector2Int blockedPrimary, Vector2Int optionA, Vector2Int optionB, out Vector2Int bestOption)
     {
+        bestOption = blockedPrimary;
         if (board == null)
             return false;
 
-        var origin = transform.position;
-        var target = origin + new Vector3(blockedPrimary.x, blockedPrimary.y, 0f) * cellSize;
-        var hitDistance = Vector2.Distance(origin, target);
-        var clip = hitDistance - cellSize * (1f - cornerAssist);
-        if (clip > cellSize * cornerAssist)
-            return false;
-
         var norm = raw.normalized;
-        var lateral = Mathf.Max(Mathf.Abs(Vector2.Dot(norm, new Vector2(optionA.x, optionA.y))),
-            Mathf.Abs(Vector2.Dot(norm, new Vector2(optionB.x, optionB.y))));
-        return lateral >= cornerAssist * 0.5f;
+        var dotA = Vector2.Dot(norm, new Vector2(optionA.x, optionA.y));
+        var dotB = Vector2.Dot(norm, new Vector2(optionB.x, optionB.y));
+
+        var chosen = dotA >= dotB ? optionA : optionB;
+        var lateralMag = Mathf.Max(dotA, dotB);
+
+        // Within 35% corner tolerance and corridor cell is open
+        if (lateralMag >= cornerAssist && CanStep(chosen))
+        {
+            bestOption = chosen;
+            return true;
+        }
+
+        var alt = dotA >= dotB ? optionB : optionA;
+        var altMag = Mathf.Min(dotA, dotB);
+        if (altMag >= cornerAssist && CanStep(alt))
+        {
+            bestOption = alt;
+            return true;
+        }
+
+        return false;
     }
 
     IEnumerator TryStepRoutine(Vector2Int direction, GameplaySessionController session)
@@ -377,9 +369,12 @@ public class PlayerGridMotor : MonoBehaviour
         stepping = true;
         facing = Vector2Int.down;
         if (spriteRenderer != null)
+        {
             spriteRenderer.flipX = false;
-        ShowIdlePose();
-        ApplyProceduralVisualLayer(false, 1f);
+            spriteRenderer.sprite = downSprite != null ? downSprite : (walkDown != null && walkDown.Length > 1 ? walkDown[1] : null);
+        }
+        ResetVisualImmediate();
+        PushAnimatorState(false, false, false);
         yield return new WaitForSeconds(horizontalPivotSeconds);
         stepping = false;
     }
@@ -469,8 +464,8 @@ public class PlayerGridMotor : MonoBehaviour
             var eased = fromIdle ? easeInFromRest.Evaluate(k) : easeChain.Evaluate(k);
             transform.position = Vector3.Lerp(from, to, eased);
 
-            var frame = WalkFrameFromProgress(eased);
-            ApplyWalkVisuals(frame, true, heavyBob, 0f, eased);
+            var frame = WalkFrameFromProgress(k);
+            ApplyWalkVisuals(frame, true, heavyBob, 0f, k);
             TryFootPlant(session, frame);
 
             yield return null;
@@ -478,7 +473,7 @@ public class PlayerGridMotor : MonoBehaviour
 
         transform.position = to;
         walkFrameIndex = 3;
-        ApplyWalkVisuals(3, true, heavyBob);
+        ApplyWalkVisuals(3, true, heavyBob, 0f, 1f);
         gridPos = target;
         stepping = false;
 
@@ -509,7 +504,16 @@ public class PlayerGridMotor : MonoBehaviour
             return;
 
         lastPlantedFrame = frame;
-        session?.OnFootPlant(FeetWorld());
+
+        var feet = FeetWorld();
+        var lateralSign = (frame == 0) ? 1f : -1f;
+        Vector3 bootPos;
+        if (facing.x != 0)
+            bootPos = feet + new Vector3(-facing.x * 0.04f, (lateralSign * 0.02f) - 0.02f, 0f);
+        else
+            bootPos = feet + new Vector3(lateralSign * 0.06f, -0.02f, 0f);
+
+        session?.OnFootPlant(bootPos);
     }
 
     Vector3 FeetWorld()
@@ -533,36 +537,41 @@ public class PlayerGridMotor : MonoBehaviour
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / digAnticipation);
             var squashK = Mathf.Sin(k * Mathf.PI);
+
             if (visual != null)
             {
                 visual.localScale = new Vector3(
                     visualBaseLocalScale.x * Mathf.Lerp(1f, pivotSquashScale.x, squashK),
                     visualBaseLocalScale.y * Mathf.Lerp(1f, pivotSquashScale.y, squashK),
                     visualBaseLocalScale.z);
-                visual.localPosition = visualBaseLocalPosition + (Vector3)lungeDir * (0.12f * squashK);
+
+                // Halt at edge, slight lunge impulse forward into dirt tile
+                visual.localPosition = visualBaseLocalPosition + lungeDir * (0.08f * squashK);
+
+                // Lean torso forward 12 degrees towards dirt tile
                 var lean = digLeanDegrees * squashK;
-                if (facing == Vector2Int.left)
+                if (facing == Vector2Int.right)
                     lean = -lean;
-                if (facing == Vector2Int.up)
-                    lean *= 0.35f;
+                else if (facing != Vector2Int.left)
+                    lean = 0f;
+
                 visual.localRotation = Quaternion.Euler(0f, 0f, lean);
             }
 
-            ApplyShadowFromBob(Mathf.Sin(k * Mathf.PI * 2f) * 0.12f);
+            ApplyShadowFromBob(squashK * 0.15f);
             yield return null;
         }
 
         if (board.TryDig(dirtCell.x, dirtCell.y))
             session.OnDug(digWorld);
 
-        if (visual != null)
-            visual.localRotation = Quaternion.identity;
+        ResetVisualImmediate();
         stepping = false;
     }
 
-    static int WalkFrameFromProgress(float eased)
+    static int WalkFrameFromProgress(float progress)
     {
-        return Mathf.Clamp(Mathf.FloorToInt(eased * 4f), 0, 3);
+        return Mathf.Clamp(Mathf.FloorToInt(progress * 4f), 0, 3);
     }
 
     IEnumerator SettleVisual()
@@ -581,32 +590,60 @@ public class PlayerGridMotor : MonoBehaviour
         ResetVisualImmediate();
     }
 
+    bool HasWalkFrames(Vector2Int direction)
+    {
+        var frames = FramesFor(direction);
+        return frames != null && frames.Length >= 4;
+    }
+
     void ApplyWalkVisuals(int frame, bool moving, float bobMultiplier, float settleBlend = 0f, float stepProgress = -1f)
     {
         walkFrameIndex = frame;
-        ApplyFrame(frame);
+        var hasFrames = HasWalkFrames(facing);
+        if (hasFrames)
+            ApplyFrame(frame);
+        else
+            ApplyFrame(-1);
 
         if (visual == null)
             return;
 
-        var verticalWalk = moving && facing.y != 0 && facing.x == 0;
+        // Two step bobs per tile traversal (nadir on foot plant frame 0 and frame 2)
         var stridePhase = stepProgress >= 0f
-            ? stepProgress * Mathf.PI * 2f
-            : (frame + 0.5f) / 4f * Mathf.PI * 2f;
-        var bob = 0f;
+            ? stepProgress * Mathf.PI * 4f
+            : (frame + 0.5f) / 4f * Mathf.PI * 4f;
+
+        // Vertical step bounce with exact nadirs (0) on foot-plant frames 0 and 2
+        var bob = moving ? 0.5f * (1f - Mathf.Cos(stridePhase)) * walkBobAmplitude * bobMultiplier : 0f;
         var strideSkewX = 0f;
         var targetLean = 0f;
-        if (!verticalWalk && moving)
+
+        if (moving)
         {
-            bob = Mathf.Sin(stridePhase) * walkBobAmplitude * bobMultiplier;
             if (facing.x != 0)
             {
-                strideSkewX = Mathf.Sin(stridePhase) * strideSkew * facing.x;
+                strideSkewX = Mathf.Sin(stridePhase * 0.5f) * strideSkew * facing.x;
                 targetLean = -facing.x * leanAngle;
+            }
+            else
+            {
+                strideSkewX = Mathf.Sin(stridePhase * 0.5f) * (strideSkew * 0.6f);
             }
         }
 
-        var lean = moving && !verticalWalk
+        // Procedural two-part limb/stride oscillation fallback if sprite sheets are not assigned
+        if (!hasFrames && moving)
+        {
+            var stepCyclePhase = stepProgress >= 0f ? stepProgress : (frame / 4f);
+            var stepHalf = Mathf.FloorToInt(stepCyclePhase * 2f) % 2;
+            var altSign = stepHalf == 0 ? 1f : -1f;
+
+            targetLean += altSign * 5.5f;
+            bob += Mathf.Abs(Mathf.Sin(stridePhase)) * (walkBobAmplitude * 0.8f);
+            strideSkewX += altSign * (strideSkew * 1.2f);
+        }
+
+        var lean = moving
             ? targetLean
             : Mathf.LerpAngle(currentLeanZ(), 0f, Time.deltaTime * leanSmooth);
 
@@ -625,7 +662,7 @@ public class PlayerGridMotor : MonoBehaviour
         visual.localScale = Vector3.Scale(visualBaseLocalScale, squash);
         visual.localRotation = Quaternion.Euler(0f, 0f, lean);
 
-        ApplyShadowFromBob(!verticalWalk && moving ? Mathf.Abs(Mathf.Sin(stridePhase)) * 0.2f * bobMultiplier : 0f);
+        ApplyShadowFromBob(moving ? Mathf.Max(0f, bob) : 0f);
 
         if (settleBlend > 0f)
             visual.localPosition += Vector3.up * (-bob * settleBlend);
@@ -636,16 +673,20 @@ public class PlayerGridMotor : MonoBehaviour
         return visual != null ? visual.localRotation.eulerAngles.z : 0f;
     }
 
-    void ApplyShadowFromBob(float intensity)
+    void ApplyShadowFromBob(float bounce)
     {
         if (shadowTransform == null)
             return;
 
-        var spread = 1f + intensity;
+        // Inverse scaling: ground shadow shrinks and softens when character bounces up,
+        // and expands to full size at the foot-plant nadir.
+        var factor = 1f / (1f + Mathf.Max(0f, bounce) * 3.5f);
         shadowTransform.localScale = new Vector3(
-            shadowBaseScale.x * spread,
-            shadowBaseScale.y / Mathf.Max(0.5f, spread),
+            shadowBaseScale.x * factor,
+            shadowBaseScale.y * factor,
             shadowBaseScale.z);
+        if (shadowRenderer != null)
+            shadowRenderer.color = new Color(0f, 0f, 0f, 0.38f * factor);
     }
 
     void ApplyProceduralVisualLayer(bool moving, float bobMultiplier)

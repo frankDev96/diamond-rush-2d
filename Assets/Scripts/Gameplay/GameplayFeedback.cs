@@ -95,9 +95,10 @@ public class GameplayFeedback : MonoBehaviour
 
     IEnumerator DigShovelRoutine(Vector3 dirtFace, Vector2Int facing, Transform explorerVisual)
     {
-        var shovel = GameplaySprites.Spawn("DigShovel", transform, GameplaySprites.WhiteSquare, dirtFace, 0.22f, FxOrder + 1);
-        shovel.color = new Color(0.55f, 0.42f, 0.28f, 1f);
-        var pivot = explorerVisual != null ? explorerVisual.position + Vector3.up * 0.08f : dirtFace;
+        var shovelSprite = GameplaySprites.Shovel;
+        var shovel = GameplaySprites.Spawn("DigShovel", transform, shovelSprite, dirtFace, 0.28f, FxOrder + 2);
+        shovel.color = Color.white;
+        var pivot = explorerVisual != null ? explorerVisual.position + Vector3.up * 0.04f : dirtFace;
         var t = 0f;
         const float duration = 0.12f;
         while (t < duration)
@@ -105,11 +106,15 @@ public class GameplayFeedback : MonoBehaviour
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / duration);
             var arc = Mathf.Sin(k * Mathf.PI);
-            var offset = new Vector3(facing.x, facing.y, 0f) * (0.18f * arc);
-            var spin = Mathf.Lerp(-55f, 35f, k) * (facing.x < 0 ? -1f : 1f);
+            var offset = new Vector3(facing.x, facing.y, 0f) * (0.22f * arc);
+            var spin = Mathf.Lerp(-65f, 45f, k) * (facing.x < 0 ? -1f : 1f);
+            if (facing == Vector2Int.down)
+                spin = Mathf.Lerp(-30f, 60f, k);
+            else if (facing == Vector2Int.up)
+                spin = Mathf.Lerp(45f, -45f, k);
             shovel.transform.position = pivot + offset;
             shovel.transform.rotation = Quaternion.Euler(0f, 0f, spin);
-            shovel.transform.localScale = Vector3.one * (0.22f / shovel.sprite.bounds.size.x) * (0.85f + arc * 0.25f);
+            shovel.transform.localScale = Vector3.one * (0.28f / shovel.sprite.bounds.size.x) * (0.9f + arc * 0.3f);
             yield return null;
         }
 
@@ -158,24 +163,30 @@ public class GameplayFeedback : MonoBehaviour
         var flyTransform = gemRenderer != null ? gemRenderer.transform : gemRoot.transform;
         var startScale = flyTransform.localScale;
         var startPos = flyTransform.position;
-        GameplayFxParticles.EmitBurst(gemSparkle, startPos, Random.Range(6, 9));
 
+        // 1. Quick star-sparkle burst at pickup location
+        GameplayFxParticles.EmitBurst(gemSparkle, startPos, Random.Range(8, 12));
+
+        // 2. Upward float & initial spin
         var t = 0f;
-        const float lift = 0.08f;
+        const float lift = 0.10f;
         while (t < lift)
         {
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / lift);
-            flyTransform.position = startPos + Vector3.up * (0.12f * k);
-            flyTransform.localScale = startScale * (1f + 0.04f * Mathf.Sin(k * Mathf.PI));
+            var easeLift = Mathf.Sin(k * Mathf.PI * 0.5f);
+            flyTransform.position = startPos + Vector3.up * (0.16f * easeLift);
+            flyTransform.rotation = Quaternion.Euler(0f, 0f, k * 45f);
             yield return null;
         }
 
         var from = flyTransform.position;
-        var spin = 0f;
         var cam = worldCamera != null ? worldCamera : Camera.main;
         t = 0f;
-        const float fly = 0.42f;
+        const float fly = 0.40f;
+        var spin = 45f;
+
+        // 3. Smooth Bezier curve flight to HUD counter with ease-in scale down
         while (t < fly)
         {
             t += Time.deltaTime;
@@ -188,13 +199,28 @@ public class GameplayFeedback : MonoBehaviour
                 to.z = 0f;
             }
 
-            var eased = k * k * (3f - 2f * k);
-            var arc = Vector3.up * (Mathf.Sin(k * Mathf.PI) * 0.35f);
-            flyTransform.position = Vector3.Lerp(from, to, eased) + arc;
+            var control = Vector3.Lerp(from, to, 0.4f) + Vector3.up * 1.1f + Vector3.right * 0.3f;
+            var u = 1f - k;
+            var bezierPos = u * u * from + 2f * u * k * control + k * k * to;
+            flyTransform.position = bezierPos;
+
             spin += Time.deltaTime * 720f;
             flyTransform.rotation = Quaternion.Euler(0f, 0f, spin);
-            flyTransform.localScale = Vector3.Lerp(startScale, startScale * 0.22f, eased);
+
+            // Ease-in scale down: smoothly shrink down to match HUD diamond icon size
+            var scaleK = k * k;
+            flyTransform.localScale = Vector3.Lerp(startScale, startScale * 0.20f, scaleK);
+
             yield return null;
+        }
+
+        // 4. Sparkle flash on HUD arrival
+        if (hud != null && cam != null)
+        {
+            var screen = hud.RequiredChipScreenPoint;
+            var arrivalWorld = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
+            arrivalWorld.z = 0f;
+            GameplayFxParticles.EmitBurst(gemSparkle, arrivalWorld, Random.Range(6, 10));
         }
 
         Destroy(gemRoot);

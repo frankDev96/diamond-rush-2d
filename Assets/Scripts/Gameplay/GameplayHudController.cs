@@ -66,26 +66,43 @@ public class GameplayHudController : MonoBehaviour
 
     IEnumerator Punch(bool complete)
     {
-        var flash = complete ? new Color(1f, 0.9f, 0.45f) : new Color(1f, 0.75f, 0.75f);
+        var flash = complete ? new Color(1f, 0.92f, 0.40f) : new Color(1f, 0.65f, 0.65f);
+        var baseTextColor = requiredRedsLabel != null ? requiredRedsLabel.color : Color.white;
         var t = 0f;
-        const float duration = 0.28f;
+        const float duration = 0.32f;
         while (t < duration)
         {
             t += Time.unscaledDeltaTime;
-            var k = Mathf.Sin(Mathf.Clamp01(t / duration) * Mathf.PI);
-            requiredChip.localScale = Vector3.one * (1f + 0.22f * k);
+            var progress = Mathf.Clamp01(t / duration);
+            // Elastic bounce pulse
+            var k = Mathf.Sin(progress * Mathf.PI);
+            var scalePulse = 1f + 0.28f * k;
+
+            if (requiredChip != null)
+                requiredChip.localScale = Vector3.one * scalePulse;
+            if (requiredIcon != null)
+                requiredIcon.localScale = Vector3.one * (1f + 0.35f * k);
             if (requiredChipImage != null)
                 requiredChipImage.color = Color.Lerp(Color.white, flash, k);
             if (requiredRedsLabel != null)
-                requiredRedsLabel.transform.localScale = Vector3.one * (1f + 0.18f * k);
+            {
+                requiredRedsLabel.transform.localScale = Vector3.one * (1f + 0.26f * k);
+                requiredRedsLabel.color = Color.Lerp(baseTextColor, flash, k);
+            }
             yield return null;
         }
 
-        requiredChip.localScale = Vector3.one;
+        if (requiredChip != null)
+            requiredChip.localScale = Vector3.one;
+        if (requiredIcon != null)
+            requiredIcon.localScale = Vector3.one;
         if (requiredChipImage != null)
             requiredChipImage.color = Color.white;
         if (requiredRedsLabel != null)
+        {
             requiredRedsLabel.transform.localScale = Vector3.one;
+            requiredRedsLabel.color = baseTextColor;
+        }
         punchRoutine = null;
     }
 }
