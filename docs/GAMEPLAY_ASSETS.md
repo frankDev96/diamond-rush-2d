@@ -29,9 +29,9 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 | `trap_fire.png` / `trap_spear.png` | 128×128 | procedural | Full | Fire damage; spear toggles every ~0.7 s. |
 | `checkpoint_pad.png` | 128×128 | procedural | Full | Sets respawn; backpack **RETURN** from level 7+. |
 | `dirt_soft.png` | 128×128 | `dirt_soft.jpg` | Full | Soft dirt over floor; shrinks + fades when dug. |
-| `wall_block.png` | 128×H (width-fit) | `angkor_wall_front.jpg` | Full | South-facing front (floor below): cap + face + vines; bottom-aligned, can extend above one cell. |
-| `wall_top.png` | 128×128, seamless | `angkor_wall_front.jpg` | Full | North rim / inner mass: top cap rows only (floor above wall). |
-| `jungle_fill.png` | 256×256, seamless | `angkor_wall_front.jpg` | Full, tiled | Mid brick band for deep fill (green-tinted in `GridBoard`). |
+| `wall_block.png` | 128×128, seamless | `angkor_wall_top_view.jpg` | Full | Oblique **top** of vertical wall (floor south / E–W corridors); one cell tall. |
+| `wall_top.png` | 128×128, seamless | `angkor_wall_top_view.jpg` | Full | North rim + inner mass caps. |
+| `jungle_fill.png` | 256×256, seamless | `angkor_wall_top_view.jpg` | Full, tiled | Stone + moss fill for deep solid cells. |
 
 ## Exit and pickups
 
@@ -91,6 +91,6 @@ Runtime-generated: soft radial circle (glows, shadows, bursts) and a white squar
 | --- | --- |
 | `explorer_walk_*.jpg` | Same explorer as `explorer_*.jpg` (brown fedora, tan shirt, backpack, brown boots). 2×2 grid of four walk frames, identical scale and baseline, full body, centred in each quadrant, flat magenta background, no shadows, no text. |
 | `angkor_floor_tile.png` | 1024×1024 rounded sandy floor slab with cracks and corner moss; inset + seamless → `floor_stone` / `floor_moss`. |
-| `angkor_wall_front.jpg` | 1024×1024 **front-view** wall (caps + carved face + vines). Walls/deep fill only; oblique rules in `GridBoard.SpawnWall`. |
+| `angkor_wall_top_view.jpg` | 1024×1024 oblique **top-of-wall** sheet (slab tops, vines, moss). Walls/deep fill only; one-cell caps in `GridBoard.SpawnWall`. |
 | `jungle_vignette_16x9.jpg` | 16:9 frame of jungle leaves and vines hugging all four edges, flat magenta centre filling ~80% of the image. |
 | `exit_arrow.jpg` | Chunky gold arrow pointing right with dark outline, flat magenta background. |

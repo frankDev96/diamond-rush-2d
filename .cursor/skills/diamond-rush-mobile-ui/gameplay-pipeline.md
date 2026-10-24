@@ -19,7 +19,7 @@ Procedures used to build Angkor Level 1 (tunnel maze, follow camera, walk cycle)
 
 - Generate with the `GenerateImage` tool on flat **#FF00FF magenta** (use #00FF00 green when the asset contains purple). Ask for thick dark outlines, cartoon style, oblique top-down view (walls show a front face, characters stand upright).
 - Save sources as `ArtSource/Gameplay/Angkor/<name>.jpg`. Processed PNGs go to `Assets/Art/Gameplay/Angkor/`.
-- World 1 tiles: `angkor_floor_tile.png` → floors only; `angkor_wall_front.jpg` → `wall_block`, `wall_top`, `jungle_fill`. South-adjacent floor gets `wall_block` (front face, bottom-aligned); north-only adjacency gets `wall_top` cap.
+- World 1 tiles: `angkor_floor_tile.png` → floors; `angkor_wall_top_view.jpg` → walls/fill. Oblique hybrid: tunnel walls are **one-cell top caps** (`wall_block` / `wall_top`), not tall front faces.
 - **Animation sheets**: one 1024x1024 image, 2x2 grid, one direction per sheet (down, up, side facing right; left = side mirrored). Frame order TL, TR, BL, BR = contact, passing, contact, passing. Name the poses explicitly in the prompt ("wide stride", "upright passing pose") or every frame comes out mid-stride; regenerate if so.
 - Tileable textures: ask for "seamless, tileable, no border". If a dark border appears, use `inset`; if it doesn't tile, use `seamless`.
 - Screen frames (vignettes) have content in the corners, so the corner pixel is not the background. Use `KeyCenter`.
@@ -51,7 +51,7 @@ When adding an asset: add the entry in both files, add it to `docs/GAMEPLAY_ASSE
 ## 3. World rendering conventions
 
 - 1 cell = 1 world unit. Sort orders: backdrop −50, floor 0, shadows 1, dirt 2, walls 3, door 4, door slots 5, gem glow 6, gem 7, player shadow and FX 9, player 10.
-- Wall autotiling in `GridBoard` (oblique hybrid): floor **south** of stone (`y-1`) → bottom-aligned `wall_block` front face + shadow on that floor; floor **north** only → `wall_top` cap; E/W corridors → front face with `flipX`; inner mass with no cardinal floor → `wall_top` if any 8-neighbour open else tiled `jungle_fill` backdrop (board + 12 cells).
+- Wall autotiling in `GridBoard` (oblique hybrid, player from bottom): cardinal floor adjacency → one-cell `wall_block` top cap (+ shadow if floor south); north-only adjacency → `wall_top`; inner mass → `wall_top` or tiled `jungle_fill` backdrop (board + 12 cells).
 - Floor variants are picked by a stable hash (`(x*73856093 ^ y*19349663) & 0x7fffffff`): about 18% `floor_moss`, 10% `floor_cracked`, then `floor_stone`/`floor_stone_alt`. The preview uses `Math.imul` so the hashes match.
 - **Intro goal pan:** after the intro card fades, `TutorialOverlay` calls `GameplayCameraFit.PanTo(board.DoorCameraAnchor, hold)` so the locked door is visible once; input stays blocked while `IsPanning`.
 - **Interaction hints:** `InteractionHintOverlay` shows one contextual arrow (dig-adjacent dirt, or pushable boulder) until the player digs; raycasts off.

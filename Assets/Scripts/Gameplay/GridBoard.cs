@@ -372,7 +372,7 @@ public class GridBoard : MonoBehaviour
         return IsOpen(x + 1, y) || IsOpen(x - 1, y) || IsOpen(x, y + 1) || IsOpen(x, y - 1);
     }
 
-    // Oblique hybrid: floor to the south (toward camera) gets the full front face; floor to the north gets cap only.
+    // Oblique hybrid: player approaches from bottom — vertical walls read as one-cell **top caps** (no tall front face).
     void SpawnWall(int x, int y, Vector3 position)
     {
         if (HasCardinalOpen(x, y))
@@ -382,23 +382,26 @@ public class GridBoard : MonoBehaviour
             var openEast = IsOpen(x + 1, y);
             var openWest = IsOpen(x - 1, y);
 
-            if (openNorth && !openSouth && !openEast && !openWest)
+            var capOnlyNorth = openNorth && !openSouth && !openEast && !openWest;
+            var sprite = capOnlyNorth && wallTopSprite != null
+                ? wallTopSprite
+                : wallSprite != null ? wallSprite : wallTopSprite;
+
+            var wall = SpawnTile(capOnlyNorth ? "WallTop" : "Wall", sprite, position, WallOrder);
+            if (wall != null)
             {
-                var cap = SpawnTile("WallTop", wallTopSprite != null ? wallTopSprite : wallSprite, position, WallOrder);
-                if (cap != null)
-                    cap.flipX = (Hash(x, y) & 4) == 4;
-                return;
+                if (openWest && !openEast)
+                    wall.flipX = true;
+                else if (openEast && !openWest)
+                    wall.flipX = false;
+                else if (openEast || openWest)
+                    wall.flipX = openWest;
+                else
+                    wall.flipX = (Hash(x, y) & 4) == 4;
+
+                if (openSouth)
+                    SpawnShadow(x, y - 1);
             }
-
-            var flipX = openWest && !openEast;
-            if (!openWest && openEast)
-                flipX = false;
-            else if (!openSouth && !openNorth && (openEast || openWest))
-                flipX = openWest;
-
-            var wall = SpawnWallFront(wallSprite, position, flipX);
-            if (wall != null && openSouth)
-                SpawnShadow(x, y - 1);
 
             return;
         }
@@ -451,26 +454,6 @@ public class GridBoard : MonoBehaviour
         renderer.sprite = sprite;
         renderer.sortingOrder = order;
         GameplaySprites.FitCell(go.transform, sprite, cellSize * 1.01f);
-        return renderer;
-    }
-
-    SpriteRenderer SpawnWallFront(Sprite sprite, Vector3 cellCenter, bool flipX)
-    {
-        if (sprite == null)
-            return null;
-
-        var go = new GameObject("Wall");
-        go.transform.SetParent(tilesRoot, false);
-        var renderer = go.AddComponent<SpriteRenderer>();
-        renderer.sprite = sprite;
-        renderer.flipX = flipX;
-        renderer.sortingOrder = WallOrder;
-
-        var size = sprite.bounds.size;
-        var scale = cellSize / size.x;
-        go.transform.localScale = new Vector3(scale, scale, 1f);
-        var scaledHeight = size.y * scale;
-        go.transform.position = cellCenter + Vector3.up * (scaledHeight - cellSize) * 0.5f;
         return renderer;
     }
 
