@@ -10,7 +10,7 @@ public static class GameplayLevel1Builder
 {
     const string ScenePath = "Assets/Scenes/GameplayLevel1.unity";
     const string LayoutPref = "DiamondRush.GameplayLevel1LayoutVersion";
-    const int LayoutVersion = 7;
+    const int LayoutVersion = 8;
     const string Home = MenuUiFactory.ArtFolder;
     const string Map = MenuUiFactory.MapArtFolder;
     const string Angkor = GameplayArtImporter.OutputFolder;
@@ -121,7 +121,6 @@ public static class GameplayLevel1Builder
 
         var canvasGo = MenuUiFactory.CreateCanvas();
         var canvas = canvasGo.transform;
-        BuildJungleFrame(canvas);
         var exitIndicator = BuildExitIndicator(canvas, fit);
         var joystick = BuildJoystick(canvasGo.GetComponent<Canvas>());
         var hud = BuildHud(canvas, spec);
@@ -228,6 +227,7 @@ public static class GameplayLevel1Builder
         MenuUiFactory.SetRef(so, "wallSprite", Art("wall_block.png"));
         MenuUiFactory.SetRef(so, "wallTopSprite", Art("wall_top.png"));
         MenuUiFactory.SetRef(so, "jungleFillSprite", Art("jungle_fill.png"));
+        MenuUiFactory.SetRef(so, "jungleEdgeSprite", Art("jungle_vignette_16x9.png"));
         MenuUiFactory.SetRef(so, "gemSprite", Art("red_diamond.png"));
         MenuUiFactory.SetRef(so, "purpleGemSprite", Art("icon_purple.png"));
         MenuUiFactory.SetRef(so, "boulderSprite", Art("boulder_face.png"));
@@ -311,15 +311,6 @@ public static class GameplayLevel1Builder
     }
 
     // ---------- Screen overlays ----------
-
-    static void BuildJungleFrame(Transform canvas)
-    {
-        // Screen-edge leaves/vines like the Level 1 mockup (transparent centre, gameplay stays visible).
-        var vignette = Decor("JungleVignette", canvas, Art("jungle_vignette_16x9.png"));
-        MenuUiFactory.Stretch(vignette.rectTransform);
-        vignette.color = new Color(1f, 1f, 1f, 0.92f);
-        vignette.raycastTarget = false;
-    }
 
     static ExitIndicator BuildExitIndicator(Transform canvas, GameplayCameraFit fit)
     {

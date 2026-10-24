@@ -19,9 +19,9 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 
 | File | Pixels | Source | Mode | Use |
 | --- | --- | --- | --- | --- |
-| `floor_stone.png` | 128×128 | `angkor_tile_native.png` | Full, crop top + seamless | Sandy cap from the native oblique wall tile. Random X flip by cell hash. |
-| `floor_stone_alt.png` | 128×128 | `angkor_tile_native.png` | Full, rotated 90° | Floor variant (~42%). |
-| `floor_moss.png` | 128×128 | `angkor_tile_native.png` | Full, deeper crop | Moss/vine band from the same tile (~18%). |
+| `floor_stone.png` | 128×128 | `angkor_floor_tile.png` | Full, inset + seamless | Sandy floor slab (center crop, tiles on open cells). Random X flip by cell hash. |
+| `floor_stone_alt.png` | 128×128 | `angkor_floor_tile.png` | Full, rotated 90° | Floor variant (~42%). |
+| `floor_moss.png` | 128×128 | `angkor_floor_tile.png` | Full, lighter inset | Same art with more corner moss (~18%). |
 | `floor_cracked.png` | 128×128 | procedural (`generate_extra_art.mjs`) | Full | Cracked stone variant (~10%). |
 | `boulder_face.png` | 128×128 | procedural | Full | Pushable boulder (~0.92 cells). |
 | `snake_green.png` | 128×128 | procedural | Full | Patrolling snake (`GridWorldController`). |
@@ -29,9 +29,9 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 | `trap_fire.png` / `trap_spear.png` | 128×128 | procedural | Full | Fire damage; spear toggles every ~0.7 s. |
 | `checkpoint_pad.png` | 128×128 | procedural | Full | Sets respawn; backpack **RETURN** from level 7+. |
 | `dirt_soft.png` | 128×128 | `dirt_soft.jpg` | Full | Soft dirt over floor; shrinks + fades when dug. |
-| `wall_block.png` | 128×82 (scaled to cell) | `angkor_tile_native.png` | Full | Oblique mossy block face at tunnel edges. Casts a 0.24-cell shadow strip onto the cell below. |
-| `wall_top.png` | 128×128, seamless | `angkor_tile_native.png` | Full | Inner wall mass: seamless sandy cap crop. |
-| `jungle_fill.png` | 256×256, seamless | `angkor_tile_native.png` | Full, tiled | Tiled cap texture for deep stone (green-tinted in `GridBoard`). |
+| `wall_block.png` | 128×H (width-fit) | `angkor_wall_front.jpg` | Full | South-facing front (floor below): cap + face + vines; bottom-aligned, can extend above one cell. |
+| `wall_top.png` | 128×128, seamless | `angkor_wall_front.jpg` | Full | North rim / inner mass: top cap rows only (floor above wall). |
+| `jungle_fill.png` | 256×256, seamless | `angkor_wall_front.jpg` | Full, tiled | Mid brick band for deep fill (green-tinted in `GridBoard`). |
 
 ## Exit and pickups
 
@@ -65,7 +65,7 @@ Runtime: visual scale 0.52 (≈1.04 cells tall), 10 fps cycle, frame 0 when idle
 | `icon_purple.png` | 96×89 | Purple wallet chip (green-keyed source). |
 | `icon_lives_head.png` | 77×96 | Lives chip. |
 | `exit_arrow.png` | 96×96 | Gold arrow pointing right. Off-screen exit indicator, rotated toward the door, 88 ref-px, pulses. |
-| `jungle_vignette_16x9.png` | 1920×1080, transparent centre | Leaf/vine frame ~140 px thick, screen-space overlay at 85% alpha, raycasts off. |
+| `jungle_vignette_16x9.png` | 1920×1080, transparent centre | Leaf/vine bands on **four sides outside the stone border** (`GridBoard.SpawnExteriorBushes`), not a screen overlay. |
 
 Shared menu art reused by gameplay: `Assets/Art/Map/hud_plaque_gold.png` (9-sliced, border 8) for counter chips when present, else `hud_chip.png`; title banner and intro card still use `hud_chip.png`; `Assets/Art/Home/stone_board.png`, `button_wood.png`, `button_continue.png`, `pill_on.png`, `pill_off.png` for modals.
 
@@ -90,6 +90,7 @@ Runtime-generated: soft radial circle (glows, shadows, bursts) and a white squar
 | Source | Prompt essentials |
 | --- | --- |
 | `explorer_walk_*.jpg` | Same explorer as `explorer_*.jpg` (brown fedora, tan shirt, backpack, brown boots). 2×2 grid of four walk frames, identical scale and baseline, full body, centred in each quadrant, flat magenta background, no shadows, no text. |
-| `angkor_tile_native.png` | Small oblique Angkor block (sandy cap + moss/vine face). `cropTop` + seamless in `GameplayArtImporter` derive floor, wall top, and fill from the same art. |
+| `angkor_floor_tile.png` | 1024×1024 rounded sandy floor slab with cracks and corner moss; inset + seamless → `floor_stone` / `floor_moss`. |
+| `angkor_wall_front.jpg` | 1024×1024 **front-view** wall (caps + carved face + vines). Walls/deep fill only; oblique rules in `GridBoard.SpawnWall`. |
 | `jungle_vignette_16x9.jpg` | 16:9 frame of jungle leaves and vines hugging all four edges, flat magenta centre filling ~80% of the image. |
 | `exit_arrow.jpg` | Chunky gold arrow pointing right with dark outline, flat magenta background. |

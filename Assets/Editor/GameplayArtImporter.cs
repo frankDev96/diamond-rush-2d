@@ -32,6 +32,7 @@ public static class GameplayArtImporter
         public float clearCenter;
         public float inset;
         public float cropTop;
+        public float cropBottom;
         public float seamless;
         public bool tiled;
         public bool feetPivot;
@@ -61,13 +62,13 @@ public static class GameplayArtImporter
     // Keep in sync with ArtSource/Gameplay/process_art.mjs.
     static readonly Entry[] Entries =
     {
-        new Entry("angkor_tile_native.png", "floor_stone.png", Mode.Full, 128) { cropTop = 0.42f, seamless = 0.14f },
-        new Entry("angkor_tile_native.png", "floor_stone_alt.png", Mode.Full, 128) { cropTop = 0.42f, seamless = 0.14f, rotate90 = true },
-        new Entry("angkor_tile_native.png", "floor_moss.png", Mode.Full, 128) { cropTop = 0.68f, seamless = 0.14f },
+        new Entry("angkor_floor_tile.png", "floor_stone.png", Mode.Full, 128) { inset = 0.07f, seamless = 0.12f },
+        new Entry("angkor_floor_tile.png", "floor_stone_alt.png", Mode.Full, 128) { inset = 0.07f, seamless = 0.12f, rotate90 = true },
+        new Entry("angkor_floor_tile.png", "floor_moss.png", Mode.Full, 128) { inset = 0.03f, seamless = 0.1f },
         new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Full, 128),
-        new Entry("angkor_tile_native.png", "wall_block.png", Mode.Full, 128),
-        new Entry("angkor_tile_native.png", "wall_top.png", Mode.Full, 128) { cropTop = 0.45f, seamless = 0.16f },
-        new Entry("angkor_tile_native.png", "jungle_fill.png", Mode.Full, 256) { cropTop = 0.45f, seamless = 0.18f, tiled = true },
+        new Entry("angkor_wall_front.jpg", "wall_block.png", Mode.Full, 128) { inset = 0.03f },
+        new Entry("angkor_wall_front.jpg", "wall_top.png", Mode.Full, 128) { inset = 0.04f, cropTop = 0.3f, seamless = 0.16f },
+        new Entry("angkor_wall_front.jpg", "jungle_fill.png", Mode.Full, 256) { inset = 0.03f, cropTop = 0.28f, cropBottom = 0.22f, seamless = 0.18f, tiled = true },
         new Entry("red_diamond.jpg", "red_diamond.png", Mode.Key, 128),
         new Entry("exit_door_closed.jpg", "exit_door_closed.png", Mode.Key, 384),
         new Entry("exit_door_open.jpg", "exit_door_open.png", Mode.Key, 384),
@@ -213,6 +214,12 @@ public static class GameplayArtImporter
             var keepH = Mathf.Max(1, Mathf.RoundToInt(image.height * entry.cropTop));
             var y0 = image.height - keepH;
             image = Crop(image, 0, y0, image.width, keepH);
+        }
+
+        if (entry.cropBottom > 0f && entry.cropBottom < 1f)
+        {
+            var keepH = Mathf.Max(1, Mathf.RoundToInt(image.height * entry.cropBottom));
+            image = Crop(image, 0, 0, image.width, keepH);
         }
 
         if (entry.mode != Mode.Full)

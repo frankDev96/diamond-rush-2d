@@ -13,13 +13,13 @@ const outputDir = path.join(root, 'Assets/Art/Gameplay/Angkor');
 const FRAME_W = 160, FRAME_H = 256;
 
 const entries = [
-  ['angkor_tile_native.png', 'floor_stone.png', 'full', 128, { cropTop: 0.42, seamless: 0.14 }],
-  ['angkor_tile_native.png', 'floor_stone_alt.png', 'full', 128, { cropTop: 0.42, seamless: 0.14, rotate90: true }],
-  ['angkor_tile_native.png', 'floor_moss.png', 'full', 128, { cropTop: 0.68, seamless: 0.14 }],
+  ['angkor_floor_tile.png', 'floor_stone.png', 'full', 128, { inset: 0.07, seamless: 0.12 }],
+  ['angkor_floor_tile.png', 'floor_stone_alt.png', 'full', 128, { inset: 0.07, seamless: 0.12, rotate90: true }],
+  ['angkor_floor_tile.png', 'floor_moss.png', 'full', 128, { inset: 0.03, seamless: 0.1 }],
   ['dirt_soft.jpg', 'dirt_soft.png', 'full', 128],
-  ['angkor_tile_native.png', 'wall_block.png', 'full', 128],
-  ['angkor_tile_native.png', 'wall_top.png', 'full', 128, { cropTop: 0.45, seamless: 0.16 }],
-  ['angkor_tile_native.png', 'jungle_fill.png', 'full', 256, { cropTop: 0.45, seamless: 0.18 }],
+  ['angkor_wall_front.jpg', 'wall_block.png', 'full', 128, { inset: 0.03 }],
+  ['angkor_wall_front.jpg', 'wall_top.png', 'full', 128, { inset: 0.04, cropTop: 0.3, seamless: 0.16 }],
+  ['angkor_wall_front.jpg', 'jungle_fill.png', 'full', 256, { inset: 0.03, cropTop: 0.28, cropBottom: 0.22, seamless: 0.18 }],
   ['red_diamond.jpg', 'red_diamond.png', 'key', 128],
   ['exit_door_closed.jpg', 'exit_door_closed.png', 'key', 384],
   ['exit_door_open.jpg', 'exit_door_open.png', 'key', 384],
@@ -266,6 +266,11 @@ for (const [source, output, mode, size, opts = {}] of entries) {
   if (opts.cropTop > 0 && opts.cropTop < 1) {
     const keepH = Math.max(1, Math.round(img.height * opts.cropTop));
     img = crop(img, 0, 0, img.width, keepH);
+  }
+  if (opts.cropBottom > 0 && opts.cropBottom < 1) {
+    const keepH = Math.max(1, Math.round(img.height * opts.cropBottom));
+    const y0 = img.height - keepH;
+    img = crop(img, 0, y0, img.width, keepH);
   }
   if (mode !== 'full') {
     keyImage(img, mode === 'keycenter' ? (Math.floor(img.height / 2) * img.width + Math.floor(img.width / 2)) * 4 : 0);

@@ -157,8 +157,15 @@ if (exits.length) {
   door = [ex, bottomY - dh / 2];
 }
 
-// screen vignette, behind HUD
-img(A + 'jungle_vignette_16x9.png', 0, 0, W, H, 150, { opacity: 0.85 });
+// jungle bands outside stone border (matches GridBoard.SpawnExteriorBushes)
+{
+  const bushD = 2.2 * ppu, pad = 3 * ppu, bw = gw * ppu, bh = gh * ppu;
+  const bush = { opacity: 0.94, objectFit: 'fill' };
+  img(A + 'jungle_vignette_16x9.png', ox - pad * 0.5, oy - bushD, bw + pad, bushD, 45, bush);
+  img(A + 'jungle_vignette_16x9.png', ox - pad * 0.5, oy + bh, bw + pad, bushD, 45, { ...bush, transform: 'rotate(180deg)', transformOrigin: 'center center' });
+  img(A + 'jungle_vignette_16x9.png', ox - bushD, oy - pad * 0.5, bushD, bh + pad, 45, { ...bush, transform: 'rotate(-90deg)', transformOrigin: 'center center' });
+  img(A + 'jungle_vignette_16x9.png', ox + bw, oy - pad * 0.5, bushD, bh + pad, 45, { ...bush, transform: 'rotate(90deg)', transformOrigin: 'center center' });
+}
 
 // exit indicator
 if (unlocked && door) {

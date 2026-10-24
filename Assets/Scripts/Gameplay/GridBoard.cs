@@ -22,6 +22,7 @@ public enum GridCell
 public class GridBoard : MonoBehaviour
 {
     const int BackdropOrder = -50;
+    const int ExteriorBushOrder = 5;
     const int FloorOrder = 0;
     const int ShadowOrder = 1;
     const int DirtOrder = 2;
@@ -45,6 +46,9 @@ public class GridBoard : MonoBehaviour
     [SerializeField] Sprite wallSprite;
     [SerializeField] Sprite wallTopSprite;
     [SerializeField] Sprite jungleFillSprite;
+    [SerializeField] Sprite jungleEdgeSprite;
+    [SerializeField] float exteriorBushDepthCells = 2.2f;
+    [SerializeField] float exteriorBushPadCells = 3f;
     [SerializeField] Sprite gemSprite;
     [SerializeField] Sprite purpleGemSprite;
     [SerializeField] Sprite boulderSprite;
@@ -134,7 +138,47 @@ public class GridBoard : MonoBehaviour
                 SpawnCellViews(x, y);
         }
 
+        SpawnExteriorBushes();
         SpawnDoor(exitCells);
+    }
+
+    void SpawnExteriorBushes()
+    {
+        if (jungleEdgeSprite == null)
+            return;
+
+        var root = new GameObject("JungleExterior");
+        root.transform.SetParent(tilesRoot, false);
+        root.transform.localPosition = Vector3.zero;
+
+        var boardW = width * cellSize;
+        var boardH = height * cellSize;
+        var depth = exteriorBushDepthCells * cellSize;
+        var pad = exteriorBushPadCells * cellSize;
+        var halfW = boardW * 0.5f;
+        var halfH = boardH * 0.5f;
+
+        // Leaf/vine bands sit just outside the stone border (world space, moves with the board + camera).
+        SpawnBushEdge(root.transform, "BushTop", new Vector3(0f, halfH + depth * 0.5f, 0f), boardW + pad, depth, 0f);
+        SpawnBushEdge(root.transform, "BushBottom", new Vector3(0f, -halfH - depth * 0.5f, 0f), boardW + pad, depth, 180f);
+        SpawnBushEdge(root.transform, "BushLeft", new Vector3(-halfW - depth * 0.5f, 0f, 0f), boardH + pad, depth, 90f);
+        SpawnBushEdge(root.transform, "BushRight", new Vector3(halfW + depth * 0.5f, 0f, 0f), boardH + pad, depth, -90f);
+    }
+
+    void SpawnBushEdge(Transform parent, string name, Vector3 localPos, float along, float thick, float zDegrees)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = localPos;
+        go.transform.localRotation = Quaternion.Euler(0f, 0f, zDegrees);
+        var renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = jungleEdgeSprite;
+        renderer.sortingOrder = ExteriorBushOrder;
+        renderer.color = new Color(1f, 1f, 1f, 0.94f);
+        var bounds = jungleEdgeSprite.bounds.size;
+        if (bounds.x <= 0f || bounds.y <= 0f)
+            return;
+        go.transform.localScale = new Vector3(along / bounds.x, thick / bounds.y, 1f);
     }
 
     void SpawnBackdrop()
@@ -328,23 +372,33 @@ public class GridBoard : MonoBehaviour
         return IsOpen(x + 1, y) || IsOpen(x - 1, y) || IsOpen(x, y + 1) || IsOpen(x, y - 1);
     }
 
-    // Tunnel-adjacent stone uses the mossy block face; inner rock uses wall tops; deep fill is jungle.
+    // Oblique hybrid: floor to the south (toward camera) gets the full front face; floor to the north gets cap only.
     void SpawnWall(int x, int y, Vector3 position)
     {
         if (HasCardinalOpen(x, y))
         {
-            var wall = SpawnTile("Wall", wallSprite, position, WallOrder);
-            if (wall != null)
+            var openSouth = IsOpen(x, y - 1);
+            var openNorth = IsOpen(x, y + 1);
+            var openEast = IsOpen(x + 1, y);
+            var openWest = IsOpen(x - 1, y);
+
+            if (openNorth && !openSouth && !openEast && !openWest)
             {
-                if (IsOpen(x - 1, y) && !IsOpen(x + 1, y))
-                    wall.flipX = true;
-                else if (IsOpen(x + 1, y))
-                    wall.flipX = false;
-                else
-                    wall.flipX = (Hash(x, y) & 4) == 4;
-                if (IsOpen(x, y - 1))
-                    SpawnShadow(x, y - 1);
+                var cap = SpawnTile("WallTop", wallTopSprite != null ? wallTopSprite : wallSprite, position, WallOrder);
+                if (cap != null)
+                    cap.flipX = (Hash(x, y) & 4) == 4;
+                return;
             }
+
+            var flipX = openWest && !openEast;
+            if (!openWest && openEast)
+                flipX = false;
+            else if (!openSouth && !openNorth && (openEast || openWest))
+                flipX = openWest;
+
+            var wall = SpawnWallFront(wallSprite, position, flipX);
+            if (wall != null && openSouth)
+                SpawnShadow(x, y - 1);
 
             return;
         }
@@ -397,6 +451,26 @@ public class GridBoard : MonoBehaviour
         renderer.sprite = sprite;
         renderer.sortingOrder = order;
         GameplaySprites.FitCell(go.transform, sprite, cellSize * 1.01f);
+        return renderer;
+    }
+
+    SpriteRenderer SpawnWallFront(Sprite sprite, Vector3 cellCenter, bool flipX)
+    {
+        if (sprite == null)
+            return null;
+
+        var go = new GameObject("Wall");
+        go.transform.SetParent(tilesRoot, false);
+        var renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.flipX = flipX;
+        renderer.sortingOrder = WallOrder;
+
+        var size = sprite.bounds.size;
+        var scale = cellSize / size.x;
+        go.transform.localScale = new Vector3(scale, scale, 1f);
+        var scaledHeight = size.y * scale;
+        go.transform.position = cellCenter + Vector3.up * (scaledHeight - cellSize) * 0.5f;
         return renderer;
     }
 
