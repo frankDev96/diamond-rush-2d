@@ -70,7 +70,10 @@ public static class GameplayFxParticles
 
         var vel = ps.velocityOverLifetime;
         vel.enabled = true;
+        // All axes must share the same MinMaxCurve mode (TwoConstants here).
+        vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
         vel.y = new ParticleSystem.MinMaxCurve(0.10f, 0.25f);
+        vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
 
         var colorOver = ps.colorOverLifetime;
         colorOver.enabled = true;

@@ -45,3 +45,7 @@ crashlytics-buildid.txt
 
 .DS_Store
 .vscode/
+
+# Blender backups. The master scene is BlenderStudio/DiamondRush_Oblique.blend.
+BlenderStudio/*.blend1
+BlenderStudio/*.blend2

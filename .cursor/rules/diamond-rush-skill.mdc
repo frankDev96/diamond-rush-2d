@@ -8,6 +8,8 @@ alwaysApply: true
 At the start of every new prompt in this project, before planning or editing anything, read [`.cursor/skills/diamond-rush-mobile-ui/SKILL.md`](.cursor/skills/diamond-rush-mobile-ui/SKILL.md) and follow it.
 
 - If the prompt touches gameplay, levels, art assets, sprite sheets, the camera, builders, or verification, also read [`.cursor/skills/diamond-rush-mobile-ui/gameplay-pipeline.md`](.cursor/skills/diamond-rush-mobile-ui/gameplay-pipeline.md) and work through its checklist.
+- If the prompt touches Blender, a `.blend` file, or rendering gameplay sprites, also read [`.agents/skills/diamond-rush-blender/SKILL.md`](.agents/skills/diamond-rush-blender/SKILL.md). Claude Code loads that same skill through the `.claude/skills/diamond-rush-blender` symlink.
+- For the oblique camera, object prompts, PNG export, or floor, wall, avatar, and level pieces, also read `.agents/skills/oblique-hybrid-view/SKILL.md`, `oblique-game-objects/SKILL.md`, `oblique-game-assets/SKILL.md`, and `oblique-level-art/SKILL.md`. The same folders are symlinked under `.claude/skills/`.
 - Use the skill's scripts (`scripts/compile_check.sh`, `scripts/serve_preview.mjs`, `scripts/decode_cdp_screenshot.mjs`) instead of rewriting those steps.
 - If the work uncovers a new procedure or trap, add it to the skill before finishing.
 - Conflict order stays as in `game-prd.mdc`: the PRD wins on product and mechanics; the skill wins on canvas, hit targets, and layout.

@@ -57,7 +57,7 @@ Read and follow this skill before changing any player-facing UI, scene layout, m
 
 ## Gameplay pipeline
 
-For new levels, gameplay art, sprite sheets, the camera, builders, or verification, read [gameplay-pipeline.md](gameplay-pipeline.md) and follow its checklist. Scripts:
+For new levels, gameplay art, sprite sheets, the camera, builders, or verification, read [gameplay-pipeline.md](gameplay-pipeline.md) and follow its checklist. Modeled world sprites rendered from Blender follow [the Blender skill](../../../.agents/skills/diamond-rush-blender/SKILL.md). Scripts:
 
 - `scripts/compile_check.sh`: Roslyn compile of runtime and editor scripts while Unity stays open.
 - `scripts/serve_preview.mjs`: serves the repo for `ArtSource/Gameplay/preview.html`.

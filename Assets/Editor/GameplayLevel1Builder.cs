@@ -92,8 +92,8 @@ public static class GameplayLevel1Builder
         if (layoutErrors.Count > 0)
         {
             foreach (var error in layoutErrors)
-                Debug.LogError("Level1Layout: " + error);
-            Debug.LogError("Diamond Rush gameplay level 1 not rebuilt: fix Level1Layout first.");
+                Debug.LogError("Level" + spec.LevelIndex + "Layout: " + error);
+            Debug.LogError("Diamond Rush gameplay level " + spec.LevelIndex + " not rebuilt: fix layout rows first.");
             return;
         }
 

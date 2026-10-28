@@ -7,7 +7,7 @@ Spec sheet for every sprite the Level 1 gameplay scene uses. Product rules live 
 | Step | Rule |
 | --- | --- |
 | Style | Cartoon, thick dark outlines, warm jungle-temple palette. Oblique top-down (Zelda-style): walls show a front face, characters stand upright. No baked text. |
-| Source | Generated JPG in `ArtSource/Gameplay/Angkor/` (outside `Assets`). Flat **#FF00FF** background; **#00FF00** when the subject is purple/magenta. Full-bleed tiles have no background. |
+| Source | Generated JPG in `ArtSource/Gameplay/Angkor/` (outside `Assets`). Flat **#FF00FF** background; **#00FF00** when the subject is purple/magenta. Full-bleed tiles have no background. Modeled world sprites (explorer, boulder, wall caps, diamonds, snakes) are rendered from `BlenderStudio/DiamondRush_Oblique.blend` by the diamond-rush-blender skill, already transparent, straight into the output folder. |
 | Processing | **Diamond Rush > Process Gameplay Art** (`Assets/Editor/GameplayArtImporter.cs`) or `node ArtSource/Gameplay/process_art.mjs`. Corner-pixel chroma key, un-blend, despill, trim (alpha > 0.05, 2px pad), supersampled resize. |
 | Output | `Assets/Art/Gameplay/Angkor/*.png` |
 | Import | Sprite (Single), **128 px per unit** (1 tile = 1 world unit), no mipmaps, bilinear, uncompressed, clamp wrap. Tiled art uses repeat wrap + Full Rect mesh. |

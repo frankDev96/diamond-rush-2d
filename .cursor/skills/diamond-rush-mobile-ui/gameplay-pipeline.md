@@ -17,6 +17,7 @@ Procedures used to build Angkor Level 1 (tunnel maze, follow camera, walk cycle)
 
 ## 1. Art generation
 
+- Modeled world sprites (explorer, face boulder, wall caps, diamonds, snakes) are rendered from Blender. Read [`.agents/skills/diamond-rush-blender/SKILL.md`](../../../.agents/skills/diamond-rush-blender/SKILL.md) and the oblique skills it links (view, objects, assets, level art). Render into `Assets/Art/Gameplay/Angkor/` using the stems in `docs/GAMEPLAY_ASSETS.md`. The red diamond prompt is in `.agents/skills/oblique-game-objects/prompts.md`. HUD, buttons, and vignettes stay on the GenerateImage path below.
 - Generate with the `GenerateImage` tool on flat **#FF00FF magenta** (use #00FF00 green when the asset contains purple). Ask for thick dark outlines, cartoon style, oblique top-down view (walls show a front face, characters stand upright).
 - Save sources as `ArtSource/Gameplay/Angkor/<name>.jpg`. Processed PNGs go to `Assets/Art/Gameplay/Angkor/`.
 - World 1 tiles: `angkor_floor_tile.png` → floors; `angkor_wall_top_view.jpg` → walls/fill. Oblique hybrid: tunnel walls are **one-cell top caps** (`wall_block` / `wall_top`), not tall front faces.
