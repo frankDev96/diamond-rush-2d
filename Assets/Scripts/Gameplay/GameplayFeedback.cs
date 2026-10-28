@@ -37,6 +37,14 @@ public class GameplayFeedback : MonoBehaviour
         Shake(0.12f, 0.06f, Vector2.zero);
     }
 
+    public void GrassPartBurst(Vector3 position)
+    {
+        GameplayFxParticles.EmitBurst(digDebris, position + Vector3.up * 0.04f, Random.Range(4, 7));
+        for (var i = 0; i < 2; i++)
+            StartCoroutine(ChunkRoutine(position, true));
+        // No camera shake — shake reads as flicker while parting grass.
+    }
+
     public void PlayDigLunge(Vector3 dirtFace, Vector2Int facing, Transform explorerVisual)
     {
         StartCoroutine(DigShovelRoutine(dirtFace, facing, explorerVisual));

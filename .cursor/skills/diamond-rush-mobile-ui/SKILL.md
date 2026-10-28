@@ -86,5 +86,11 @@ Capture new valid criticism here as short bullets (see `.cursor/rules/capture-fe
 - Explorer walk: `explorer_walk_down` / `_up` / `_side` must be **three distinct sheets** (front / back / right profile). Identical copies make left/right flips look wrong. Left = side sheet + `flipX`. Never route L↔R turns through a fake down pose.
 - Up walk must match down’s leg rhythm: clear wide contact → close passing → opposite contact → passing. If up frames look like a static V-stance, regenerate the sheet (don’t only tweak the motor).
 - Soft-clear tiles are bush/grass (not mud mounds); bumping/walking in clears them immediately while the walk cycle continues. Legs must stay locked to cell travel (`strideCyclesPerStep`), not a free-running Hz timer.
-- Soft-clear grass fills the **full square tile** (edge-to-edge, `noTrim` process), not a circular tuft. Live multi-wave `BushSway` breeze always; on bump call `Rustle(push)` then parting clear — don’t freeze grass into a static sprite.
+- Soft-clear grass must read as **warm green vegetation** at follow-camera distance (opaque irregular clump on the floor). A dark translucent canopy looks like grey noise — reject it. Live `BushSway`; on bump `Rustle(push)` then parting clear.
+- Wall caps must be **axis-aligned square oblique tops + short south lip**, processed with **Key** (never Mode.Full on magenta-backed isometric cubes). Baked magenta = pink voids in Game view. Fail process if opaque magenta >1%.
+- Exterior jungle uses **top-down bush clumps** with gentle tilt-only sway (`BushSway.ConfigureGentle`). Never rotate side-view hedge strips 90° into a fence, and never stretch the 16:9 vignette.
+- Walk feel: `stepDuration` ~0.22, `walkSpeedScale` ~0.85, stronger abs(sin) bob (~0.07) + contact plant squash. Stone walls hard-stop with input cooldown — no bounce/squash spam.
+- Player `sortingOrder` must stay fixed above floors (10). Do not use `40 + (-y*10)` — north cells go negative and the explorer vanishes under FloorOrder 0.
+- Gameplay title banner must use `title_banner.png` (wide stone plate), never stretch `hud_chip`. If `hud_chip` source is a World Select screenshot, reprocess from a real chip plaque — it shows as map nodes behind THE GATES.
+- Soft grass: hand-reach lean mid-step + `grass_rustle` SFX, then part. Freeze `BushSway` before clear; no camera shake on grass (shake reads as flicker).
 - Up walk sheets must be generated from the down frames’ leg poses (contact/passing pairs). A weak up sheet makes “down looks fine, up looks stuck.”

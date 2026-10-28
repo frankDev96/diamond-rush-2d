@@ -22,16 +22,17 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 | `floor_stone.png` | 128×128 | `angkor_floor_tile.png` | Full, inset + seamless | Sandy floor slab (center crop, tiles on open cells). Random X flip by cell hash. |
 | `floor_stone_alt.png` | 128×128 | `angkor_floor_tile.png` | Full, rotated 90° | Floor variant (~42%). |
 | `floor_moss.png` | 128×128 | `angkor_floor_tile.png` | Full, lighter inset | Same art with more corner moss (~18%). |
-| `floor_cracked.png` | 128×128 | procedural (`generate_extra_art.mjs`) | Full | Cracked stone variant (~10%). |
+| `floor_cracked.png` | 128×128 | `angkor_floor_tile.png` | Full, inset + seamless | Cracked stone variant (~10%); same temple floor family (not procedural grey). |
 | `boulder_face.png` | 128×128 | `boulder_face.jpg` (Angkor L1 concept) | Key | Pushable face boulder (~0.92 cells). |
 | `snake_green.png` | 128×128 | `snake_green.jpg` (Angkor L1 concept) | Key | Patrolling snake (`GridWorldController`). |
 | `chest_wood.png` / `chest_secret.png` | 128×128 | `chest_wood.jpg` | Key | +4 / +8 purple when stepped on. |
 | `trap_fire.png` / `trap_spear.png` | 128×128 | procedural | Full | Fire damage; spear toggles every ~0.7 s. |
 | `checkpoint_pad.png` | 128×128 | `checkpoint_pad.jpg` (Angkor L1 concept) | Key | Sets respawn; backpack **RETURN** from level 7+. |
-| `dirt_soft.png` | 128×128 (full cell) | `dirt_soft.jpg` (edge-to-edge grass) | Key, noTrim | Soft-clear grass filling the square tile; live `BushSway` breeze; rustles then clears on bump. |
-| `wall_block.png` | 128×128, seamless | `angkor_wall_top_view.jpg` | Full | Oblique **top** of vertical wall (floor south / E–W corridors); one cell tall. |
-| `wall_top.png` | 128×128, seamless | `angkor_wall_top_view.jpg` | Full | North rim + inner mass caps. |
-| `jungle_fill.png` | 256×256, seamless | `angkor_wall_top_view.jpg` | Full, tiled | Stone + moss fill for deep solid cells. |
+| `dirt_soft.png` | ~128×128 | `dirt_soft.jpg` (opaque grass clump) | Key | Soft-clear irregular grass on floor; live `BushSway`; rustles then clears on bump. Must read as green vegetation at follow distance (not a dark canopy). |
+| `wall_block.png` | 128×128 | `wall_block.jpg` | Key | Oblique square **top + south lip** wall cap (floor south / E–W corridors). Never isometric diamonds; no baked magenta. |
+| `wall_top.png` | 128×128 | `wall_top.jpg` | Key | Flatter north-rim / inner-mass cap (same square oblique rules). |
+| `jungle_fill.png` | 256×256, seamless | `jungle_fill.jpg` | Full, tiled | Dense jungle foliage for deep solid cells + exterior backdrop. |
+| `bush_edge.png` | ~128–512 | `bush_edge.jpg` (top-down clump) | Key | Exterior bush clumps along the board border (`SpawnBushClumpRow`). Top-down irregular foliage, gentle sway. |
 
 ## Exit and pickups
 
@@ -65,9 +66,7 @@ Runtime: visual scale 0.52 (≈1.04 cells tall), 10 fps cycle, frame 0 when idle
 | `icon_purple.png` | 96×89 | Purple wallet chip (green-keyed source). |
 | `icon_lives_head.png` | 77×96 | Lives chip. |
 | `exit_arrow.png` | 96×96 | Gold arrow pointing right. Off-screen exit indicator, rotated toward the door, 88 ref-px, pulses. |
-| `jungle_vignette_16x9.png` | 1920×1080, transparent centre | Leaf/vine bands on **four sides outside the stone border** (`GridBoard.SpawnExteriorBushes`), not a screen overlay. |
-
-Shared menu art reused by gameplay: `Assets/Art/Map/hud_plaque_gold.png` (9-sliced, border 8) for counter chips when present, else `hud_chip.png`; title banner and intro card still use `hud_chip.png`; `Assets/Art/Home/stone_board.png`, `button_wood.png`, `button_continue.png`, `pill_on.png`, `pill_off.png` for modals.
+Shared menu art reused by gameplay: `title_banner.png` for the Level title plate (THE GATES); `hud_plaque_gold.png` (9-sliced) for counter chips when present, else `hud_chip.png`; intro card may use `hud_chip.png`. Never put a World Select screenshot into `hud_chip`. Also: `Assets/Art/Home/stone_board.png`, `button_wood.png`, `button_continue.png`, `pill_on.png`, `pill_off.png` for modals.
 
 ## FX
 
@@ -83,6 +82,8 @@ Runtime-generated: soft radial circle (glows, shadows, bursts) and a white squar
 | File | Reason |
 | --- | --- |
 | `jungle_border_16x9.png` | Opaque centre; does not suit the scrolling follow camera. Kept on disk, unused. |
+| `jungle_vignette_16x9.png` | Replaced by `bush_edge.png` for exterior strips (stretching the full 16:9 frame crushed leaves). Kept on disk, unused. |
+| `angkor_wall_top_view.jpg` → wall/fill | Isometric magenta cube baked pink diamonds; replaced by keyed `wall_block.jpg` / `wall_top.jpg` + foliage `jungle_fill.jpg`. |
 | `Assets/Art/Gameplay/Generated/*` | Procedural placeholders; fallback only. |
 
 ## Generation prompts (summary)

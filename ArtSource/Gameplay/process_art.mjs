@@ -16,11 +16,14 @@ const entries = [
   ['angkor_floor_tile.png', 'floor_stone.png', 'full', 128, { inset: 0.07, seamless: 0.12 }],
   ['angkor_floor_tile.png', 'floor_stone_alt.png', 'full', 128, { inset: 0.07, seamless: 0.12, rotate90: true }],
   ['angkor_floor_tile.png', 'floor_moss.png', 'full', 128, { inset: 0.03, seamless: 0.1 }],
-  // Full-cell grass: keep square canvas (no trim) so foliage fills the tile edge-to-edge.
-  ['dirt_soft.jpg', 'dirt_soft.png', 'key', 128, { noTrim: true }],
-  ['angkor_wall_top_view.jpg', 'wall_block.png', 'full', 128, { inset: 0.04, cropTop: 0.52, seamless: 0.14 }],
-  ['angkor_wall_top_view.jpg', 'wall_top.png', 'full', 128, { inset: 0.04, cropTop: 0.48, seamless: 0.16 }],
-  ['angkor_wall_top_view.jpg', 'jungle_fill.png', 'full', 256, { inset: 0.05, cropTop: 0.55, seamless: 0.18 }],
+  ['angkor_floor_tile.png', 'floor_cracked.png', 'full', 128, { inset: 0.1, seamless: 0.12 }],
+  // Soft-clear grass clump (irregular silhouette, readable green).
+  ['dirt_soft.jpg', 'dirt_soft.png', 'key', 128],
+  // Square oblique wall caps — Key so magenta never bakes in as opaque pink.
+  ['wall_block.jpg', 'wall_block.png', 'key', 128, { noTrim: true }],
+  ['wall_top.jpg', 'wall_top.png', 'key', 128, { noTrim: true }],
+  ['jungle_fill.jpg', 'jungle_fill.png', 'full', 256, { inset: 0.04, seamless: 0.14 }],
+  ['bush_edge.jpg', 'bush_edge.png', 'key', 512],
   ['boulder_face.jpg', 'boulder_face.png', 'key', 128],
   ['snake_green.jpg', 'snake_green.png', 'key', 128],
   ['chest_wood.jpg', 'chest_wood.png', 'key', 128],
@@ -290,43 +293,44 @@ for (const [source, output, mode, size, opts = {}] of entries) {
   if (opts.seamless || opts.noTrim) { ow = oh = size; }
   else if (mode === 'full' || mode === 'keycenter') { ow = size; oh = Math.round((size * img.height) / img.width); }
   else { const s = size / Math.max(img.width, img.height); ow = Math.max(1, Math.round(img.width * s)); oh = Math.max(1, Math.round(img.height * s)); }
-  writePng(path.join(outputDir, output), resample(img, ow, oh));
-  console.log(`${output} ${ow}x${oh}`);
+  const outImg = resample(img, ow, oh);
+  const outPath = path.join(outputDir, output);
+  writePng(outPath, outImg);
+  const magentaFrac = countOpaqueMagenta(outImg);
+  if (magentaFrac > 0.01) {
+    console.error(`FAIL ${output}: ${(magentaFrac * 100).toFixed(1)}% opaque magenta (limit 1%)`);
+    process.exitCode = 1;
+  }
+  console.log(`${output} ${ow}x${oh}${magentaFrac > 0 ? ` magenta=${(magentaFrac * 100).toFixed(2)}%` : ''}`);
 }
 
-/** Kill leftover magenta key pixels inside full-tile grass (tiny pink flowers / bleed). */
+/** Zero leftover magenta spill on keyed square tiles (keep transparency). */
 function scrubMagentaSpeckles(img) {
-  const { width, height, px } = img;
+  const { px } = img;
   for (let i = 0; i < px.length; i += 4) {
     const r = px[i], g = px[i + 1], b = px[i + 2], a = px[i + 3];
     if (a < 0.05) continue;
     const magenta = Math.min(r, b) - g;
-    if (magenta > 0.12 && r > 0.45 && b > 0.35) {
-      // Replace with nearby olive so the tile stays opaque edge-to-edge.
-      px[i] = 0.22; px[i + 1] = 0.38; px[i + 2] = 0.16; px[i + 3] = 1;
+    if (magenta > 0.08 && r > 0.4 && b > 0.3) {
+      px[i] = px[i + 1] = px[i + 2] = px[i + 3] = 0;
       continue;
     }
-    // Soften pinkish spill toward green.
-    if (magenta > 0.04) {
+    if (magenta > 0.03) {
       px[i] = clamp01(r - magenta);
       px[i + 2] = clamp01(b - magenta);
       px[i + 1] = clamp01(g + magenta * 0.35);
+      px[i + 3] = clamp01(a * (1 - magenta * 1.2));
     }
   }
-  // Fill fully transparent holes so FitCell reads as a solid square tile.
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const i = (y * width + x) * 4;
-    if (px[i + 3] >= 0.15) continue;
-    let r = 0, g = 0, b = 0, n = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const nx = x + dx, ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      const j = (ny * width + nx) * 4;
-      if (px[j + 3] < 0.2) continue;
-      r += px[j]; g += px[j + 1]; b += px[j + 2]; n++;
-    }
-    if (n === 0) { px[i] = 0.18; px[i + 1] = 0.32; px[i + 2] = 0.12; }
-    else { px[i] = r / n; px[i + 1] = g / n; px[i + 2] = b / n; }
-    px[i + 3] = 1;
+}
+
+function countOpaqueMagenta(img) {
+  const { px } = img;
+  let total = 0, bad = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 0.5) continue;
+    total++;
+    if (px[i] > 0.75 && px[i + 2] > 0.75 && px[i + 1] < 0.35) bad++;
   }
+  return total === 0 ? 0 : bad / total;
 }

@@ -53,13 +53,13 @@ When adding an asset: add the entry in both files, add it to `docs/GAMEPLAY_ASSE
 ## 3. World rendering conventions
 
 - 1 cell = 1 world unit. Sort orders: backdrop −50, floor 0, shadows 1, dirt 2, walls 3, door 4, door slots 5, gem glow 6, gem 7, player shadow and FX 9, player 10.
-- Wall autotiling in `GridBoard` (oblique hybrid, player from bottom): cardinal floor adjacency → one-cell `wall_block` top cap (+ shadow if floor south); north-only adjacency → `wall_top`; inner mass → `wall_top` or tiled `jungle_fill` backdrop (board + 12 cells).
+- Wall autotiling in `GridBoard` (oblique hybrid, player from bottom): cardinal floor adjacency → one-cell `wall_block` top cap (+ shadow if floor south); north-only adjacency → `wall_top`; inner mass → `wall_top` or tiled `jungle_fill` backdrop (board + 12 cells). Wall sprites are keyed square caps from `wall_block.jpg` / `wall_top.jpg`; fill from `jungle_fill.jpg`. Exterior frame tiles `bush_edge.png` along each side (`SpawnBushEdgeStrip`), not the 16:9 vignette.
 - Floor variants are picked by a stable hash (`(x*73856093 ^ y*19349663) & 0x7fffffff`): about 18% `floor_moss`, 10% `floor_cracked`, then `floor_stone`/`floor_stone_alt`. The preview uses `Math.imul` so the hashes match.
 - **Intro goal pan:** after the intro card fades, `TutorialOverlay` calls `GameplayCameraFit.PanTo(board.DoorCameraAnchor, hold)` so the locked door is visible once; input stays blocked while `IsPanning`.
 - **Interaction hints:** `InteractionHintOverlay` shows one contextual arrow (dig-adjacent dirt, or pushable boulder) until the player digs; raycasts off.
 - Reference mockups for Level 2 may show every mechanic at once; shipping levels follow PRD hints one at a time.
 - Characters use feet pivots. The player visual sits at local y −0.42 with scale 0.52, so the boots are near the bottom of the cell.
-- **PlayerGridMotor:** linear root lerp per cell; during a step, stride phase locks to eased travel (`strideCyclesPerStep`, default 1 cycle/tile) so legs match the floor; bob `abs(sin(phase))`; foot plants on contact frames 0/2. Soft-clear tiles (`GridCell.Dirt`) are full-cell grass with live `BushSway`; bump rustles then clears while walking continues (no dig halt). Step 0.18 s/tile, `walkSpeedScale` 1.
+- **PlayerGridMotor:** linear root lerp per cell; stride locks to eased travel (`strideCyclesPerStep`); bob `abs(sin(phase))` ~0.07 with contact plant squash; foot plants on 0/2; player sort order fixed at 10 (above floors). Soft grass: mid-step hand-reach + rustle SFX, then clear. Stone walls hard-stop with input cooldown. Step ~0.22 s/tile, `walkSpeedScale` ~0.85.
 - **GameplayFeedback / GameplayFxParticles:** foot dust and dig debris use runtime `ParticleSystem` bursts (warm-gray specs 0.04–0.08, sort order 9). Do not fall back to `GameplaySprites.SoftCircle` for footsteps — it reads as a giant white puff. Gem pickup animates the **Gem** child only (hide glow); fly to `GameplayHudController.RequiredChipScreenPoint` then `PunchRequired`.
 
 ## 4. Level layouts

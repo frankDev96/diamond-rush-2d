@@ -188,6 +188,17 @@ public class GameplaySessionController : MonoBehaviour
             interactionHint.NotifyDug();
     }
 
+    // Soft-clear grass: rustle already played; light debris, no hard dig shake flicker.
+    public void OnGrassParted(Vector3 position)
+    {
+        if (feedback != null)
+            feedback.GrassPartBurst(position);
+        if (tutorial != null)
+            tutorial.NotifyDug();
+        if (interactionHint != null)
+            interactionHint.NotifyDug();
+    }
+
     public void OnBoulderPushed(Vector3 at)
     {
         if (feedback != null)

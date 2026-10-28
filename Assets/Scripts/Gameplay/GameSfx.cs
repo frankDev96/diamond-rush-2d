@@ -5,6 +5,7 @@ public class GameSfx : MonoBehaviour
     public static GameSfx Instance { get; private set; }
 
     [SerializeField] AudioClip digClip;
+    [SerializeField] AudioClip grassRustleClip;
     [SerializeField] AudioClip gemCollectClip;
     [SerializeField] AudioClip hitClip;
     [SerializeField] AudioClip doorUnlockClip;
@@ -42,6 +43,14 @@ public class GameSfx : MonoBehaviour
     public void PlayDig()
     {
         PlayOneShot(digClip);
+    }
+
+    public void PlayGrassRustle()
+    {
+        if (grassRustleClip != null)
+            PlayOneShot(grassRustleClip);
+        else
+            PlayOneShot(digClip);
     }
 
     public void PlayGemCollect()

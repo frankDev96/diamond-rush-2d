@@ -158,27 +158,40 @@ public class GridBoard : MonoBehaviour
         var halfW = boardW * 0.5f;
         var halfH = boardH * 0.5f;
 
-        // Leaf/vine bands sit just outside the stone border (world space, moves with the board + camera).
-        SpawnBushEdge(root.transform, "BushTop", new Vector3(0f, halfH + depth * 0.5f, 0f), boardW + pad, depth, 0f);
-        SpawnBushEdge(root.transform, "BushBottom", new Vector3(0f, -halfH - depth * 0.5f, 0f), boardW + pad, depth, 180f);
-        SpawnBushEdge(root.transform, "BushLeft", new Vector3(-halfW - depth * 0.5f, 0f, 0f), boardH + pad, depth, 90f);
-        SpawnBushEdge(root.transform, "BushRight", new Vector3(halfW + depth * 0.5f, 0f, 0f), boardH + pad, depth, -90f);
+        // Top-down bush clumps along the border (not rotated side-view hedge strips).
+        SpawnBushClumpRow(root.transform, "BushTop", -halfW - pad * 0.5f, halfW + pad * 0.5f, halfH + depth * 0.35f, depth, true);
+        SpawnBushClumpRow(root.transform, "BushBottom", -halfW - pad * 0.5f, halfW + pad * 0.5f, -halfH - depth * 0.35f, depth, true);
+        SpawnBushClumpRow(root.transform, "BushLeft", -halfH - pad * 0.5f, halfH + pad * 0.5f, -halfW - depth * 0.35f, depth, false);
+        SpawnBushClumpRow(root.transform, "BushRight", -halfH - pad * 0.5f, halfH + pad * 0.5f, halfW + depth * 0.35f, depth, false);
     }
 
-    void SpawnBushEdge(Transform parent, string name, Vector3 localPos, float along, float thick, float zDegrees)
+    void SpawnBushClumpRow(Transform parent, string name, float alongMin, float alongMax, float outward, float depth, bool horizontal)
     {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = localPos;
-        go.transform.localRotation = Quaternion.Euler(0f, 0f, zDegrees);
-        var renderer = go.AddComponent<SpriteRenderer>();
-        renderer.sprite = jungleEdgeSprite;
-        renderer.sortingOrder = ExteriorBushOrder;
-        renderer.color = new Color(1f, 1f, 1f, 0.94f);
-        var bounds = jungleEdgeSprite.bounds.size;
-        if (bounds.x <= 0f || bounds.y <= 0f)
-            return;
-        go.transform.localScale = new Vector3(along / bounds.x, thick / bounds.y, 1f);
+        var spacing = cellSize * 0.95f;
+        var count = Mathf.Max(2, Mathf.CeilToInt((alongMax - alongMin) / spacing));
+        for (var i = 0; i < count; i++)
+        {
+            var t = count == 1 ? 0.5f : i / (float)(count - 1);
+            var along = Mathf.Lerp(alongMin, alongMax, t);
+            // Stagger depth/offset so the hedge does not read as a straight fence.
+            var jitterAlong = ((Hash(i, name.GetHashCode()) % 100) / 100f - 0.5f) * cellSize * 0.35f;
+            var jitterOut = ((Hash(i * 3, name.GetHashCode()) % 100) / 100f - 0.5f) * depth * 0.35f;
+            var pos = horizontal
+                ? new Vector3(along + jitterAlong, outward + jitterOut, 0f)
+                : new Vector3(outward + jitterOut, along + jitterAlong, 0f);
+
+            var go = new GameObject(name + "_" + i);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = pos;
+            var renderer = go.AddComponent<SpriteRenderer>();
+            renderer.sprite = jungleEdgeSprite;
+            renderer.sortingOrder = ExteriorBushOrder;
+            renderer.flipX = (i & 1) == 1;
+            var size = cellSize * (1.05f + ((Hash(i, 17) % 40) / 100f));
+            GameplaySprites.FitCell(go.transform, jungleEdgeSprite, size);
+            var sway = go.AddComponent<BushSway>();
+            sway.ConfigureGentle();
+        }
     }
 
     void SpawnBackdrop()
@@ -467,8 +480,8 @@ public class GridBoard : MonoBehaviour
         renderer.sprite = sprite;
         renderer.sortingOrder = DirtOrder;
         renderer.flipX = (hash & 4) == 4;
-        // Fill the square cell edge-to-edge (slight overlap hides seams between neighbours).
-        GameplaySprites.FitCell(go.transform, sprite, cellSize * 1.04f);
+        // Leave a little floor peek so the clump reads as grass sitting on the tile.
+        GameplaySprites.FitCell(go.transform, sprite, cellSize * 0.94f);
         go.AddComponent<BushSway>();
         return renderer;
     }
@@ -750,49 +763,35 @@ public class GridBoard : MonoBehaviour
         StartCoroutine(Pulse(doorView.transform, 1.08f, 0.4f));
     }
 
-    IEnumerator ClearGrass(SpriteRenderer view, Vector2 pushDir, float duration = 0.22f)
+    IEnumerator ClearGrass(SpriteRenderer view, Vector2 pushDir, float duration = 0.2f)
     {
         if (view == null)
             yield break;
 
+        // Freeze breeze first so sway and clear never fight (that looked like flicker).
         var sway = view.GetComponent<BushSway>();
         if (sway != null)
-            sway.Rustle(pushDir);
-
-        // Let the live breeze + rustle read for a beat, then part and fade.
-        var keepSway = Mathf.Min(0.08f, duration * 0.35f);
-        var waited = 0f;
-        while (waited < keepSway && view != null)
         {
-            waited += Time.deltaTime;
-            yield return null;
+            sway.Rustle(pushDir);
+            sway.enabled = false;
         }
 
-        if (sway != null)
-            sway.enabled = false;
-
-        if (view == null)
-            yield break;
-
         var start = view.transform.localScale;
-        var startRot = view.transform.localRotation;
-        var origin = view.transform.position;
+        var startRot = Quaternion.identity;
         var color = view.color;
         var push = pushDir.sqrMagnitude > 0.0001f ? pushDir.normalized : Vector2.right;
         var t = 0f;
-        var clearDuration = Mathf.Max(0.05f, duration - keepSway);
-        while (t < clearDuration && view != null)
+        while (t < duration && view != null)
         {
             t += Time.deltaTime;
-            var k = Mathf.Clamp01(t / clearDuration);
-            var flutter = Mathf.Sin(k * Mathf.PI * 6f) * (1f - k);
+            var k = Mathf.Clamp01(t / duration);
+            var ease = k * k;
             view.transform.localScale = new Vector3(
-                start.x * (1f - 0.35f * k + flutter * 0.06f),
-                start.y * (1f - 0.7f * k),
+                start.x * (1f + 0.12f * k) * (1f - 0.55f * ease),
+                start.y * (1f - 0.75f * ease),
                 start.z);
-            view.transform.localRotation = startRot * Quaternion.Euler(0f, 0f, (18f * push.x + flutter * 10f) * k);
-            view.transform.position = origin + new Vector3(push.x * 0.08f * k, 0.04f * k, 0f);
-            color.a = 1f - k;
+            view.transform.localRotation = startRot * Quaternion.Euler(0f, 0f, push.x * 14f * k);
+            color.a = 1f - ease;
             view.color = color;
             yield return null;
         }

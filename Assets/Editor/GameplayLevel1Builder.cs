@@ -10,7 +10,7 @@ public static class GameplayLevel1Builder
 {
     const string ScenePath = "Assets/Scenes/GameplayLevel1.unity";
     const string LayoutPref = "DiamondRush.GameplayLevel1LayoutVersion";
-    const int LayoutVersion = 14;
+    const int LayoutVersion = 17;
     const string Home = MenuUiFactory.ArtFolder;
     const string Map = MenuUiFactory.MapArtFolder;
     const string Angkor = GameplayArtImporter.OutputFolder;
@@ -227,7 +227,7 @@ public static class GameplayLevel1Builder
         MenuUiFactory.SetRef(so, "wallSprite", Art("wall_block.png"));
         MenuUiFactory.SetRef(so, "wallTopSprite", Art("wall_top.png"));
         MenuUiFactory.SetRef(so, "jungleFillSprite", Art("jungle_fill.png"));
-        MenuUiFactory.SetRef(so, "jungleEdgeSprite", Art("jungle_vignette_16x9.png"));
+        MenuUiFactory.SetRef(so, "jungleEdgeSprite", Art("bush_edge.png"));
         MenuUiFactory.SetRef(so, "gemSprite", Art("red_diamond.png"));
         MenuUiFactory.SetRef(so, "purpleGemSprite", Art("icon_purple.png"));
         MenuUiFactory.SetRef(so, "boulderSprite", Art("boulder_face.png"));
@@ -275,8 +275,10 @@ public static class GameplayLevel1Builder
         SetSprites(so, "walkDown", GameplayArtImporter.LoadFrames("explorer_walk_down"));
         SetSprites(so, "walkUp", walkUp);
         SetSprites(so, "walkSide", GameplayArtImporter.LoadFrames("explorer_walk_side"));
-        so.FindProperty("stepDuration").floatValue = 0.18f;
-        so.FindProperty("walkSpeedScale").floatValue = 1f;
+        so.FindProperty("stepDuration").floatValue = 0.22f;
+        so.FindProperty("walkSpeedScale").floatValue = 0.85f;
+        so.FindProperty("walkBobAmplitude").floatValue = 0.07f;
+        so.FindProperty("strideSkew").floatValue = 0.024f;
         so.ApplyModifiedPropertiesWithoutUndo();
         return motor;
     }
@@ -302,6 +304,7 @@ public static class GameplayLevel1Builder
 
         var sfxSo = new SerializedObject(sfx);
         MenuUiFactory.SetRef(sfxSo, "digClip", AssetDatabase.LoadAssetAtPath<AudioClip>(MenuUiFactory.SfxFolder + "dig.wav"));
+        MenuUiFactory.SetRef(sfxSo, "grassRustleClip", AssetDatabase.LoadAssetAtPath<AudioClip>(MenuUiFactory.SfxFolder + "grass_rustle.wav"));
         MenuUiFactory.SetRef(sfxSo, "gemCollectClip", AssetDatabase.LoadAssetAtPath<AudioClip>(MenuUiFactory.SfxFolder + "gem_collect.wav"));
         MenuUiFactory.SetRef(sfxSo, "hitClip", AssetDatabase.LoadAssetAtPath<AudioClip>(MenuUiFactory.SfxFolder + "hit.wav"));
         MenuUiFactory.SetRef(sfxSo, "doorUnlockClip", AssetDatabase.LoadAssetAtPath<AudioClip>(MenuUiFactory.SfxFolder + "door_unlock.wav"));
@@ -336,14 +339,15 @@ public static class GameplayLevel1Builder
         var hudRect = MenuUiFactory.CreateRect("GameplayHud", canvas);
         MenuUiFactory.Stretch(hudRect);
 
-        var banner = SlicedPanel("TitleBanner", hudRect);
-        MenuUiFactory.Place(banner.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -16f), new Vector2(680f, 104f));
-        var worldLine = MenuUiFactory.CreateText("WorldLine", banner.transform, "WORLD 1: ANGKOR WAT - LEVEL " + spec.LevelIndex, 20, FontStyles.Bold, MenuUiFactory.Title, TextAlignmentOptions.Left);
-        MenuUiFactory.Place(worldLine.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -12f), new Vector2(620f, 28f));
-        MenuUiFactory.ApplyOutline(worldLine, 0.15f);
-        var stageLine = MenuUiFactory.CreateText("StageLine", banner.transform, spec.StageName, 36, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Left);
-        MenuUiFactory.Place(stageLine.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -44f), new Vector2(620f, 44f));
-        MenuUiFactory.ApplyOutline(stageLine, 0.2f);
+        // Wide temple title plate — do not stretch hud_chip (reads as a muddy map fragment behind THE GATES).
+        var banner = TitleBannerPanel("TitleBanner", hudRect);
+        MenuUiFactory.Place(banner.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -12f), new Vector2(720f, 112f));
+        var worldLine = MenuUiFactory.CreateText("WorldLine", banner.transform, "WORLD 1: ANGKOR WAT - LEVEL " + spec.LevelIndex, 20, FontStyles.Bold, MenuUiFactory.Title, TextAlignmentOptions.Center);
+        MenuUiFactory.Place(worldLine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(640f, 28f));
+        MenuUiFactory.ApplyOutline(worldLine, 0.2f);
+        var stageLine = MenuUiFactory.CreateText("StageLine", banner.transform, spec.StageName, 38, FontStyles.Bold, MenuUiFactory.Subtitle, TextAlignmentOptions.Center);
+        MenuUiFactory.Place(stageLine.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -48f), new Vector2(640f, 48f));
+        MenuUiFactory.ApplyOutline(stageLine, 0.25f);
 
         var chipRow = MenuUiFactory.CreateRect("ChipRow", hudRect);
         MenuUiFactory.Place(chipRow, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -18f), new Vector2(760f, 68f));
@@ -414,10 +418,33 @@ public static class GameplayLevel1Builder
         return button;
     }
 
+    static Image TitleBannerPanel(string name, Transform parent)
+    {
+        var path = Map + "title_banner.png";
+        var sprite = File.Exists(path)
+            ? MenuUiFactory.SpriteAt("title_banner.png", Map)
+            : MenuUiFactory.SpriteAt("hud_plaque_gold.png", Map);
+        MenuUiFactory.EnsureSingleSprite(path);
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        var border = new Vector4(48f, 36f, 48f, 36f);
+        if (importer != null && importer.spriteBorder != border)
+        {
+            importer.spriteBorder = border;
+            importer.SaveAndReimport();
+            sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        }
+
+        var image = Decor(name, parent, sprite);
+        image.type = Image.Type.Sliced;
+        image.color = Color.white;
+        return image;
+    }
+
     static Image SlicedPanel(string name, Transform parent)
     {
         var path = Map + "hud_chip.png";
         var sprite = MenuUiFactory.SpriteAt("hud_chip.png", Map);
+        MenuUiFactory.EnsureSingleSprite(path);
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
         var border = new Vector4(14f, 14f, 14f, 14f);
         if (importer != null && importer.spriteBorder != border)

@@ -84,7 +84,7 @@ function entity(w, h, draw) {
 }
 
 const size = 128;
-writePng(path.join(out, 'floor_cracked.png'), size, size, stoneTile(size, size, true));
+// floor_cracked comes from angkor_floor_tile via process_art.mjs — do not overwrite with procedural grey.
 writePng(path.join(out, 'boulder_face.png'), size, size, entity(size, size, (x, y, cx, cy) => {
   const dx = (x - cx) / (size * 0.38);
   const dy = (y - cy) / (size * 0.38);

@@ -66,11 +66,14 @@ public static class GameplayArtImporter
         new Entry("angkor_floor_tile.png", "floor_stone.png", Mode.Full, 128) { inset = 0.07f, seamless = 0.12f },
         new Entry("angkor_floor_tile.png", "floor_stone_alt.png", Mode.Full, 128) { inset = 0.07f, seamless = 0.12f, rotate90 = true },
         new Entry("angkor_floor_tile.png", "floor_moss.png", Mode.Full, 128) { inset = 0.03f, seamless = 0.1f },
-        // Soft-clear tile: full-cell jungle grass (still GridCell.Dirt mechanically).
-        new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Key, 128) { noTrim = true },
-        new Entry("angkor_wall_top_view.jpg", "wall_block.png", Mode.Full, 128) { inset = 0.04f, cropTop = 0.52f, seamless = 0.14f },
-        new Entry("angkor_wall_top_view.jpg", "wall_top.png", Mode.Full, 128) { inset = 0.04f, cropTop = 0.48f, seamless = 0.16f },
-        new Entry("angkor_wall_top_view.jpg", "jungle_fill.png", Mode.Full, 256) { inset = 0.05f, cropTop = 0.55f, seamless = 0.18f, tiled = true },
+        new Entry("angkor_floor_tile.png", "floor_cracked.png", Mode.Full, 128) { inset = 0.1f, seamless = 0.12f },
+        // Soft-clear grass clump (still GridCell.Dirt mechanically).
+        new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Key, 128),
+        // Square oblique wall caps — Key so magenta never bakes in as opaque pink.
+        new Entry("wall_block.jpg", "wall_block.png", Mode.Key, 128) { noTrim = true },
+        new Entry("wall_top.jpg", "wall_top.png", Mode.Key, 128) { noTrim = true },
+        new Entry("jungle_fill.jpg", "jungle_fill.png", Mode.Full, 256) { inset = 0.04f, seamless = 0.14f, tiled = true },
+        new Entry("bush_edge.jpg", "bush_edge.png", Mode.Key, 512),
         new Entry("boulder_face.jpg", "boulder_face.png", Mode.Key, 128),
         new Entry("snake_green.jpg", "snake_green.png", Mode.Key, 128),
         new Entry("chest_wood.jpg", "chest_wood.png", Mode.Key, 128),
@@ -268,7 +271,11 @@ public static class GameplayArtImporter
             outHeight = Mathf.Max(1, Mathf.RoundToInt(image.height * scale));
         }
 
-        Write(OutputFolder + entry.output, Resample(image, outWidth, outHeight));
+        var output = Resample(image, outWidth, outHeight);
+        Write(OutputFolder + entry.output, output);
+        var magentaFrac = CountOpaqueMagenta(output);
+        if (magentaFrac > 0.01f)
+            Debug.LogError("Diamond Rush art magenta fail: " + entry.output + " = " + (magentaFrac * 100f).ToString("0.0") + "%");
     }
 
     static void ScrubMagentaSpeckles(Image image)
@@ -280,51 +287,37 @@ public static class GameplayArtImporter
             if (c.a < 0.05f)
                 continue;
             var magenta = Mathf.Min(c.r, c.b) - c.g;
-            if (magenta > 0.12f && c.r > 0.45f && c.b > 0.35f)
+            if (magenta > 0.08f && c.r > 0.4f && c.b > 0.3f)
             {
-                px[i] = new Color(0.22f, 0.38f, 0.16f, 1f);
+                px[i] = new Color(0f, 0f, 0f, 0f);
                 continue;
             }
 
-            if (magenta > 0.04f)
+            if (magenta > 0.03f)
             {
                 c.r = Mathf.Clamp01(c.r - magenta);
                 c.b = Mathf.Clamp01(c.b - magenta);
                 c.g = Mathf.Clamp01(c.g + magenta * 0.35f);
+                c.a = Mathf.Clamp01(c.a * (1f - magenta * 1.2f));
                 px[i] = c;
             }
         }
+    }
 
-        for (var y = 0; y < image.height; y++)
-        for (var x = 0; x < image.width; x++)
+    static float CountOpaqueMagenta(Image image)
+    {
+        var total = 0;
+        var bad = 0;
+        foreach (var c in image.px)
         {
-            var i = y * image.width + x;
-            if (px[i].a >= 0.15f)
+            if (c.a < 0.5f)
                 continue;
-            var r = 0f;
-            var g = 0f;
-            var b = 0f;
-            var n = 0;
-            for (var dy = -1; dy <= 1; dy++)
-            for (var dx = -1; dx <= 1; dx++)
-            {
-                var nx = x + dx;
-                var ny = y + dy;
-                if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height)
-                    continue;
-                var nColor = px[ny * image.width + nx];
-                if (nColor.a < 0.2f)
-                    continue;
-                r += nColor.r;
-                g += nColor.g;
-                b += nColor.b;
-                n++;
-            }
-
-            px[i] = n == 0
-                ? new Color(0.18f, 0.32f, 0.12f, 1f)
-                : new Color(r / n, g / n, b / n, 1f);
+            total++;
+            if (c.r > 0.75f && c.b > 0.75f && c.g < 0.35f)
+                bad++;
         }
+
+        return total == 0 ? 0f : bad / (float)total;
     }
 
     static void ProcessSheet(Entry entry, Image sheet)
