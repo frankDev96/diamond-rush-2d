@@ -99,6 +99,20 @@ World 1 walls are one-cell top caps. The oblique camera should show the front li
 
 From Blender's Text Editor, run `BlenderStudio/scripts/render_to_unity.py` and call `render_oblique_asset_to_unity("boulder_face", resolution=128)`.
 
+## Walk cycle anti-flicker
+
+Frame flicker on up/down walks is usually pivot drift, root motion, or harsh shadows — not the Unity animator. Stabilize before export:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender \
+  BlenderStudio/DiamondRush_Oblique.blend --background \
+  --python .agents/skills/diamond-rush-blender/scripts/stabilize_walk_cycle.py -- \
+  --armature Armature --facing down --frames 24 --sheet \
+  --width 160 --height 256
+```
+
+Repeat with `--facing up` and `--facing side`. The script locks the 45° ortho camera on `WalkRoot`, flattens lighting (shadows off), zeros root XY, symmetrizes pelvis bob (stronger clamp on up/down), registers feet in camera space every frame, writes `BlenderStudio/renders/Walk/<facing>/`, and drops `ENGINE_SMOOTHING.md` for Unity/Godot pixel snap. Launcher: `BlenderStudio/scripts/stabilize_walk_cycle.py`.
+
 ## After the PNG exists
 
 1. Add or update the row in `docs/GAMEPLAY_ASSETS.md` (pixels, pivot, sort order, use) before wiring it into a level.
@@ -108,6 +122,55 @@ From Blender's Text Editor, run `BlenderStudio/scripts/render_to_unity.py` and c
 5. Read the PNG before reporting done. Corners are transparent. The subject sits in the cell the way the asset spec describes.
 
 HUD buttons, joystick art, and vignettes stay on the GenerateImage path in `gameplay-pipeline.md`. Blender is for modeled world sprites.
+
+## Home hero art
+
+The interactive Home stays in Unity (`HomeScreenBuilder`): full-bleed background, explorer left, logo top-center, right stack Continue / New Game / Settings. Do not bake the mockup's always-on Settings/Help board into a Blender PNG.
+
+Home art is refined **element by element** until the composed preview matches the painted mockup. Do not install into `Assets/Art/Home/` until that check passes.
+
+### 1. Composed Home preview (mockup likeness)
+
+Sources live in `ArtSource/Home/` (`*_refined.jpg`). Process into preview PNGs:
+
+```bash
+/opt/homebrew/opt/node@22/bin/node \
+  .agents/skills/diamond-rush-blender/scripts/process_home_refined.mjs
+
+# After visual approval:
+/opt/homebrew/opt/node@22/bin/node \
+  .agents/skills/diamond-rush-blender/scripts/process_home_refined.mjs --install
+```
+
+Writes `BlenderStudio/renders/Home/` (`bg_temple`, `hero_explorer`, `gem_cluster`, `logo`, `button_continue`, `button_newgame`, `button_settings`, `home_preview`). `--install` copies the approved layers into `Assets/Art/Home/`. Then bump `HomeScreenBuilder.LayoutVersion` and rebuild Home.
+
+**Home UI plate rule (user feedback):** `logo`, `button_continue`, `button_newgame`, and `button_settings` must be **opaque** plates (solid dark-stone backing via `opaquePlate` in `process_home_refined.mjs`). Do not install ghosted / holey chroma-key UI — labels become invisible on the temple mist and Unity shows white empty buttons when sprites fail. Explorer and gem cluster stay cutouts; temple bg stays opaque full-bleed. After install, force Single sprite metas and rebuild Home.
+
+### 2. High-poly Blender pieces (modular)
+
+Build/refine meshes in `BlenderStudio/HomeHero.blend` and render each piece alone:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python .agents/skills/diamond-rush-blender/scripts/build_home_elements.py -- --eevee
+```
+
+Element sheets land in `BlenderStudio/renders/Home/elements/` (`pillar`, `torch`, `floor_slab`, `leaf`, `arch_stone`, `crystal_pink`). Iterate a piece until it matches the mockup style, then rebuild the composed preview. Do not keep Home element drafts of `explorer` or `diamond_red` here; those belong to gameplay / composed Home layers.
+
+Full scene block-out (optional):
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python .agents/skills/diamond-rush-blender/scripts/build_home_screen.py -- --eevee
+```
+
+Home uses a landscape hero camera, not the one-cell gameplay camera. After visual approval only:
+
+```bash
+.../build_home_screen.py -- --install
+```
+
+or copy the approved PNGs from `BlenderStudio/renders/Home/` into `Assets/Art/Home/`. Never install a blocky pass over polished shipping art.
 
 ## Existing mesh already in Unity
 

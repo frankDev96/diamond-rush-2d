@@ -36,8 +36,9 @@ Read and follow this skill before changing any player-facing UI, scene layout, m
 
 - Full-bleed temple background.
 - Explorer on the **left**, full height, unchanged pose.
-- Logo top-center, small enough to miss the hat and buttons.
+- Logo top-center, small enough to miss the hat and buttons — **DIAMOND RUSH 2D must stay clearly readable** against the misty temple (opaque plate, not ghosted chroma-key).
 - Right stack only: Continue (with last-save subtitle), New Game, Settings.
+- Menu button plates and the logo are **opaque** (solid dark-stone backing). Do not ship holey / semi-transparent UI plates that show white ghosts or blend into the background.
 - Settings opens a dim + stone-board **modal** with Sound ON/OFF and Vibrate ON/OFF. Close on dim tap or Close.
 
 ## World Select / level map layout
@@ -66,3 +67,24 @@ For new levels, gameplay art, sprite sheets, the camera, builders, or verificati
 ## Rebuild
 
 After UI hierarchy changes, rebuild with **Diamond Rush → Build Home Screen**, **Diamond Rush → Build World Select Screen** or **Diamond Rush → Build Angkor Level 1 Gameplay** (run **Process Gameplay Art** first when art changed). Bump the builder's `LayoutVersion` so the auto-build picks it up. Do not hand-edit huge `.unity` YAML when a builder exists.
+
+## Traps
+
+- White blank menu buttons usually mean `Image.sprite` is null. After replacing a Home/Map PNG, stale `.meta` sprite sheets (`spriteMode: 2` with old rects larger than the new texture) drop the Sprite. `MenuUiFactory.EnsureSingleSprite` must force Single, clear `m_Sprites` **and** leftover `nameFileIdTable` `_0` entries (those recreate out-of-bounds slices), then rebuild.
+- Soft chroma-key alpha on logo/buttons makes labels invisible on the temple mist. Re-run `process_home_refined.mjs --install` so logo/buttons are opaque plates; bump `HomeScreenBuilder.LayoutVersion` and rebuild Home.
+- Fixing only the `.meta` is not enough if the scene still has `m_Sprite: {fileID: 0}` — bump layout version and rebuild Home / World Select so Images rebind. Single sprites use `fileID: 21300000`.
+
+## Learned (from user feedback)
+
+Capture new valid criticism here as short bullets (see `.cursor/rules/capture-feedback.mdc`).
+
+- Home: logo **DIAMOND RUSH 2D** must be visible; enlarge/center if needed; never leave it semi-transparent over the bright temple.
+- Home: remove holey UI transparency on logo and menu buttons; use opaque plates with a proper dark stone backing color.
+- Home: after installing new PNGs, verify scene `m_Sprite` is not `{fileID: 0}` — white empty buttons mean import/meta failed, not missing art files.
+- World Select: `title_banner` / `icon_diamond` (and other Map/Home icons) must stay `spriteMode: 1`; Multiple sheets with rects larger than the PNG make TitleBanner and gem icons disappear.
+- Empty Multiple sheets (`spriteMode: 2` + `sprites: []`) also yield zero sprites — same white UI. After PNG swaps, wipe `internalIDToNameTable` / `nameFileIdTable` and force Single before rebuilding World Select.
+- Explorer walk: `explorer_walk_down` / `_up` / `_side` must be **three distinct sheets** (front / back / right profile). Identical copies make left/right flips look wrong. Left = side sheet + `flipX`. Never route L↔R turns through a fake down pose.
+- Up walk must match down’s leg rhythm: clear wide contact → close passing → opposite contact → passing. If up frames look like a static V-stance, regenerate the sheet (don’t only tweak the motor).
+- Soft-clear tiles are bush/grass (not mud mounds); bumping/walking in clears them immediately while the walk cycle continues. Legs must stay locked to cell travel (`strideCyclesPerStep`), not a free-running Hz timer.
+- Soft-clear grass fills the **full square tile** (edge-to-edge, `noTrim` process), not a circular tuft. Live multi-wave `BushSway` breeze always; on bump call `Rustle(push)` then parting clear — don’t freeze grass into a static sprite.
+- Up walk sheets must be generated from the down frames’ leg poses (contact/passing pairs). A weak up sheet makes “down looks fine, up looks stuck.”

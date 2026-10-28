@@ -36,6 +36,7 @@ public static class GameplayArtImporter
         public float seamless;
         public bool tiled;
         public bool feetPivot;
+        public bool noTrim;
 
         public Entry(string source, string output, Mode mode, int size)
         {
@@ -65,10 +66,16 @@ public static class GameplayArtImporter
         new Entry("angkor_floor_tile.png", "floor_stone.png", Mode.Full, 128) { inset = 0.07f, seamless = 0.12f },
         new Entry("angkor_floor_tile.png", "floor_stone_alt.png", Mode.Full, 128) { inset = 0.07f, seamless = 0.12f, rotate90 = true },
         new Entry("angkor_floor_tile.png", "floor_moss.png", Mode.Full, 128) { inset = 0.03f, seamless = 0.1f },
-        new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Full, 128),
+        // Soft-clear tile: full-cell jungle grass (still GridCell.Dirt mechanically).
+        new Entry("dirt_soft.jpg", "dirt_soft.png", Mode.Key, 128) { noTrim = true },
         new Entry("angkor_wall_top_view.jpg", "wall_block.png", Mode.Full, 128) { inset = 0.04f, cropTop = 0.52f, seamless = 0.14f },
         new Entry("angkor_wall_top_view.jpg", "wall_top.png", Mode.Full, 128) { inset = 0.04f, cropTop = 0.48f, seamless = 0.16f },
         new Entry("angkor_wall_top_view.jpg", "jungle_fill.png", Mode.Full, 256) { inset = 0.05f, cropTop = 0.55f, seamless = 0.18f, tiled = true },
+        new Entry("boulder_face.jpg", "boulder_face.png", Mode.Key, 128),
+        new Entry("snake_green.jpg", "snake_green.png", Mode.Key, 128),
+        new Entry("chest_wood.jpg", "chest_wood.png", Mode.Key, 128),
+        new Entry("chest_wood.jpg", "chest_secret.png", Mode.Key, 128),
+        new Entry("checkpoint_pad.jpg", "checkpoint_pad.png", Mode.Key, 128),
         new Entry("red_diamond.jpg", "red_diamond.png", Mode.Key, 128),
         new Entry("exit_door_closed.jpg", "exit_door_closed.png", Mode.Key, 384),
         new Entry("exit_door_open.jpg", "exit_door_open.png", Mode.Key, 384),
@@ -230,9 +237,12 @@ public static class GameplayArtImporter
             KeyImage(image, key);
             if (entry.clearCenter > 0f)
                 ClearCenter(image, entry.clearCenter);
-            if (entry.mode != Mode.KeyCenter)
+            if (entry.mode != Mode.KeyCenter && !entry.noTrim)
                 image = Trim(image);
         }
+
+        if (entry.noTrim)
+            ScrubMagentaSpeckles(image);
 
         if (entry.seamless > 0f)
             image = MakeSeamless(image, entry.seamless);
@@ -242,7 +252,7 @@ public static class GameplayArtImporter
 
         int outWidth;
         int outHeight;
-        if (entry.seamless > 0f)
+        if (entry.seamless > 0f || entry.noTrim)
         {
             outWidth = outHeight = entry.size;
         }
@@ -259,6 +269,62 @@ public static class GameplayArtImporter
         }
 
         Write(OutputFolder + entry.output, Resample(image, outWidth, outHeight));
+    }
+
+    static void ScrubMagentaSpeckles(Image image)
+    {
+        var px = image.px;
+        for (var i = 0; i < px.Length; i++)
+        {
+            var c = px[i];
+            if (c.a < 0.05f)
+                continue;
+            var magenta = Mathf.Min(c.r, c.b) - c.g;
+            if (magenta > 0.12f && c.r > 0.45f && c.b > 0.35f)
+            {
+                px[i] = new Color(0.22f, 0.38f, 0.16f, 1f);
+                continue;
+            }
+
+            if (magenta > 0.04f)
+            {
+                c.r = Mathf.Clamp01(c.r - magenta);
+                c.b = Mathf.Clamp01(c.b - magenta);
+                c.g = Mathf.Clamp01(c.g + magenta * 0.35f);
+                px[i] = c;
+            }
+        }
+
+        for (var y = 0; y < image.height; y++)
+        for (var x = 0; x < image.width; x++)
+        {
+            var i = y * image.width + x;
+            if (px[i].a >= 0.15f)
+                continue;
+            var r = 0f;
+            var g = 0f;
+            var b = 0f;
+            var n = 0;
+            for (var dy = -1; dy <= 1; dy++)
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                var nx = x + dx;
+                var ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height)
+                    continue;
+                var nColor = px[ny * image.width + nx];
+                if (nColor.a < 0.2f)
+                    continue;
+                r += nColor.r;
+                g += nColor.g;
+                b += nColor.b;
+                n++;
+            }
+
+            px[i] = n == 0
+                ? new Color(0.18f, 0.32f, 0.12f, 1f)
+                : new Color(r / n, g / n, b / n, 1f);
+        }
     }
 
     static void ProcessSheet(Entry entry, Image sheet)

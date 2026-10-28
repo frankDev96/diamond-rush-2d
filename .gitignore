@@ -46,6 +46,32 @@ crashlytics-buildid.txt
 .DS_Store
 .vscode/
 
-# Blender backups. The master scene is BlenderStudio/DiamondRush_Oblique.blend.
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Blender backups. Masters: DiamondRush_Oblique.blend, HomeHero.blend.
 BlenderStudio/*.blend1
 BlenderStudio/*.blend2
+BlenderStudio/**/*.blend1
+BlenderStudio/**/*.blend2
+
+# Scratch / audit renders (not shipped).
+BlenderStudio/renders/style_audit/
+
+# Unused ArtSource leftovers (pipeline uses angkor_floor_tile.png + listed process_art entries).
+ArtSource/Gameplay/Angkor/angkor_floor_tile.jpg
+ArtSource/Gameplay/Angkor/angkor_cell_tile.jpg
+ArtSource/Gameplay/Angkor/angkor_cell_tile.png
+ArtSource/Gameplay/Angkor/angkor_stone_wall.jpg
+ArtSource/Gameplay/Angkor/angkor_tile_native.png
+ArtSource/Gameplay/Angkor/angkor_wall_front.jpg
+ArtSource/Gameplay/Angkor/angkor_wall_oblique.jpg
+ArtSource/Gameplay/Angkor/ankor_wat_level_1_ref.jpg
+ArtSource/Gameplay/Angkor/floor_moss.jpg
+ArtSource/Gameplay/Angkor/floor_stone_single.jpg
+ArtSource/Gameplay/Angkor/jungle_fill.jpg
+ArtSource/Gameplay/Angkor/wall_block_full.jpg
+ArtSource/Gameplay/Angkor/wall_top.jpg
+ArtSource/Map/map_selection_ref.jpg

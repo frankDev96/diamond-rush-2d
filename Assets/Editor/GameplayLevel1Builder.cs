@@ -10,7 +10,7 @@ public static class GameplayLevel1Builder
 {
     const string ScenePath = "Assets/Scenes/GameplayLevel1.unity";
     const string LayoutPref = "DiamondRush.GameplayLevel1LayoutVersion";
-    const int LayoutVersion = 9;
+    const int LayoutVersion = 14;
     const string Home = MenuUiFactory.ArtFolder;
     const string Map = MenuUiFactory.MapArtFolder;
     const string Angkor = GameplayArtImporter.OutputFolder;

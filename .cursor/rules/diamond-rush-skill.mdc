@@ -12,4 +12,5 @@ At the start of every new prompt in this project, before planning or editing any
 - For the oblique camera, object prompts, PNG export, or floor, wall, avatar, and level pieces, also read `.agents/skills/oblique-hybrid-view/SKILL.md`, `oblique-game-objects/SKILL.md`, `oblique-game-assets/SKILL.md`, and `oblique-level-art/SKILL.md`. The same folders are symlinked under `.claude/skills/`.
 - Use the skill's scripts (`scripts/compile_check.sh`, `scripts/serve_preview.mjs`, `scripts/decode_cdp_screenshot.mjs`) instead of rewriting those steps.
 - If the work uncovers a new procedure or trap, add it to the skill before finishing.
+- If the user gives a **valid** comment or criticism, follow [capture-feedback.mdc](capture-feedback.mdc): fix it, then write a short durable bullet into the matching skill in the same turn.
 - Conflict order stays as in `game-prd.mdc`: the PRD wins on product and mechanics; the skill wins on canvas, hit targets, and layout.

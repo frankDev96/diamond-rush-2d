@@ -11,7 +11,7 @@ public static class WorldSelectBuilder
 {
     const string ScenePath = "Assets/Scenes/WorldSelect.unity";
     const string LayoutPref = "DiamondRush.WorldSelectLayoutVersion";
-    const int LayoutVersion = 2;
+    const int LayoutVersion = 7;
     const string Map = MenuUiFactory.MapArtFolder;
 
     static readonly string[] WorldTitles =
@@ -85,6 +85,7 @@ public static class WorldSelectBuilder
     {
         MenuUiFactory.ApplyPlayerDefaults();
         AssetDatabase.Refresh();
+        MenuUiFactory.EnsureAllMenuSprites();
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         MenuUiFactory.CreateCamera();

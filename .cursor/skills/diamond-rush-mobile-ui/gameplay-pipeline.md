@@ -18,10 +18,11 @@ Procedures used to build Angkor Level 1 (tunnel maze, follow camera, walk cycle)
 ## 1. Art generation
 
 - Modeled world sprites (explorer, face boulder, wall caps, diamonds, snakes) are rendered from Blender. Read [`.agents/skills/diamond-rush-blender/SKILL.md`](../../../.agents/skills/diamond-rush-blender/SKILL.md) and the oblique skills it links (view, objects, assets, level art). Render into `Assets/Art/Gameplay/Angkor/` using the stems in `docs/GAMEPLAY_ASSETS.md`. The red diamond prompt is in `.agents/skills/oblique-game-objects/prompts.md`. HUD, buttons, and vignettes stay on the GenerateImage path below.
-- Generate with the `GenerateImage` tool on flat **#FF00FF magenta** (use #00FF00 green when the asset contains purple). Ask for thick dark outlines, cartoon style, oblique top-down view (walls show a front face, characters stand upright).
+- Generate with the `GenerateImage` tool on flat **#FF00FF magenta** (use #00FF00 green when the asset contains purple). Ask for **painterly semi-realistic** style: soft lighting, material texture (stone grain, fabric, scales, gem refraction), **no thick cartoon outlines**, **no flat cel/vector look**. Match World Select map art (`Assets/Art/Map/`). Oblique top-down hybrid (walls show a front face, characters stand upright). After processing, visually audit PNGs for leftover magenta and cartoon outlines before shipping.
 - Save sources as `ArtSource/Gameplay/Angkor/<name>.jpg`. Processed PNGs go to `Assets/Art/Gameplay/Angkor/`.
 - World 1 tiles: `angkor_floor_tile.png` → floors; `angkor_wall_top_view.jpg` → walls/fill. Oblique hybrid: tunnel walls are **one-cell top caps** (`wall_block` / `wall_top`), not tall front faces.
 - **Animation sheets**: one 1024x1024 image, 2x2 grid, one direction per sheet (down, up, side facing right; left = side mirrored). Frame order TL, TR, BL, BR = contact, passing, contact, passing. Name the poses explicitly in the prompt ("wide stride", "upright passing pose") or every frame comes out mid-stride; regenerate if so.
+- **Trap:** if `explorer_walk_down_0`, `_up_0`, and `_side_0` share the same file hash, facings were duplicated — regenerate all three sheets before blaming the motor. Verify with sha1 before shipping.
 - Tileable textures: ask for "seamless, tileable, no border". If a dark border appears, use `inset`; if it doesn't tile, use `seamless`.
 - Screen frames (vignettes) have content in the corners, so the corner pixel is not the background. Use `KeyCenter`.
 - After processing, **read every output PNG** to check the keying, the trim, and that the poses differ.
@@ -58,7 +59,7 @@ When adding an asset: add the entry in both files, add it to `docs/GAMEPLAY_ASSE
 - **Interaction hints:** `InteractionHintOverlay` shows one contextual arrow (dig-adjacent dirt, or pushable boulder) until the player digs; raycasts off.
 - Reference mockups for Level 2 may show every mechanic at once; shipping levels follow PRD hints one at a time.
 - Characters use feet pivots. The player visual sits at local y −0.42 with scale 0.52, so the boots are near the bottom of the cell.
-- **PlayerGridMotor:** motion reference `diamond_rush_gif_maker.html` / `explorer_4dir_10s_white_bg.gif` — linear root lerp per cell; **continuous** stride phase at `strideCyclesPerSecond` (2 Hz = 5 strides / 2.5 s); bob `abs(sin(phase))`; one coroutine chains steps while input held; horizontal pivot only from idle. Sprites unchanged. Step 0.18 s/tile, `walkSpeedScale` 1.
+- **PlayerGridMotor:** linear root lerp per cell; during a step, stride phase locks to eased travel (`strideCyclesPerStep`, default 1 cycle/tile) so legs match the floor; bob `abs(sin(phase))`; foot plants on contact frames 0/2. Soft-clear tiles (`GridCell.Dirt`) are full-cell grass with live `BushSway`; bump rustles then clears while walking continues (no dig halt). Step 0.18 s/tile, `walkSpeedScale` 1.
 - **GameplayFeedback / GameplayFxParticles:** foot dust and dig debris use runtime `ParticleSystem` bursts (warm-gray specs 0.04–0.08, sort order 9). Do not fall back to `GameplaySprites.SoftCircle` for footsteps — it reads as a giant white puff. Gem pickup animates the **Gem** child only (hide glow); fly to `GameplayHudController.RequiredChipScreenPoint` then `PunchRequired`.
 
 ## 4. Level layouts

@@ -11,7 +11,7 @@ public static class HomeScreenBuilder
 {
     const string ScenePath = "Assets/Scenes/Home.unity";
     const string LayoutPref = "DiamondRush.HomeLayoutVersion";
-    const int LayoutVersion = 4;
+    const int LayoutVersion = 10;
 
     static HomeScreenBuilder()
     {
@@ -75,6 +75,7 @@ public static class HomeScreenBuilder
     {
         MenuUiFactory.ApplyPlayerDefaults();
         AssetDatabase.Refresh();
+        MenuUiFactory.EnsureAllMenuSprites();
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         MenuUiFactory.CreateCamera();
@@ -89,8 +90,10 @@ public static class HomeScreenBuilder
         var hero = MenuUiFactory.CreateSprite("Explorer", canvas, "hero_explorer.png", true);
         MenuUiFactory.Place(hero.GetComponent<RectTransform>(), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(16f, 0f), new Vector2(560f, 980f));
 
+        // Opaque logo plate (DIAMOND RUSH 2D) — centered, clear of explorer hat.
         var logo = MenuUiFactory.CreateSprite("Logo", canvas, "logo.png", true);
-        MenuUiFactory.Place(logo.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(80f, -8f), new Vector2(620f, 188f));
+        MenuUiFactory.Place(logo.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(720f, 220f));
+        logo.GetComponent<Image>().raycastTarget = false;
 
         var version = MenuUiFactory.CreateText("Version", canvas, "v1.2", 22, FontStyles.Bold, Color.white, TextAlignmentOptions.TopRight);
         MenuUiFactory.Place(version.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-28f, -16f), new Vector2(90f, 40f));
@@ -101,9 +104,9 @@ public static class HomeScreenBuilder
         gems.GetComponent<Image>().raycastTarget = false;
 
         var menuRoot = MenuUiFactory.CreateRect("Menu", canvas);
-        MenuUiFactory.Place(menuRoot, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-48f, -24f), new Vector2(640f, 520f));
+        MenuUiFactory.Place(menuRoot, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-40f, -40f), new Vector2(640f, 500f));
         var menu = menuRoot.gameObject.AddComponent<VerticalLayoutGroup>();
-        menu.spacing = 18f;
+        menu.spacing = 16f;
         menu.childAlignment = TextAnchor.MiddleCenter;
         menu.childControlWidth = true;
         menu.childControlHeight = true;
@@ -114,9 +117,10 @@ public static class HomeScreenBuilder
         var controllerGo = new GameObject("HomeScreen");
         var controller = controllerGo.AddComponent<HomeScreenController>();
 
-        var continueButton = MenuUiFactory.CreateMenuButton(menuRoot, "button_continue.png", "CONTINUE", "Last Saved: Profile 1 - Angkor Wat Level 2", 148f, 88f, out var continueSubtitle);
-        var newButton = MenuUiFactory.CreateMenuButton(menuRoot, "button_wood.png", "NEW GAME", "New Profile", 120f, 16f, out _);
-        var settingsButton = MenuUiFactory.CreateMenuButton(menuRoot, "button_wood.png", "SETTINGS", null, 120f, 16f, out _);
+        // Opaque stone plates already include CONTINUE / NEW GAME / SETTINGS labels.
+        var continueButton = MenuUiFactory.CreateMenuButton(menuRoot, "button_continue.png", null, "Last Saved: Profile 1 - Angkor Wat Level 2", 140f, 16f, out var continueSubtitle);
+        var newButton = MenuUiFactory.CreateMenuButton(menuRoot, "button_newgame.png", null, null, 118f, 16f, out _);
+        var settingsButton = MenuUiFactory.CreateMenuButton(menuRoot, "button_settings.png", null, null, 118f, 16f, out _);
 
         var settingsPanel = CreateSettingsModal(canvas, controller, out var sound, out var vibrate);
         var toast = MenuUiFactory.CreateToast(canvas, out var toastLabel);

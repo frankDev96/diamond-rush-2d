@@ -16,10 +16,16 @@ const entries = [
   ['angkor_floor_tile.png', 'floor_stone.png', 'full', 128, { inset: 0.07, seamless: 0.12 }],
   ['angkor_floor_tile.png', 'floor_stone_alt.png', 'full', 128, { inset: 0.07, seamless: 0.12, rotate90: true }],
   ['angkor_floor_tile.png', 'floor_moss.png', 'full', 128, { inset: 0.03, seamless: 0.1 }],
-  ['dirt_soft.jpg', 'dirt_soft.png', 'full', 128],
+  // Full-cell grass: keep square canvas (no trim) so foliage fills the tile edge-to-edge.
+  ['dirt_soft.jpg', 'dirt_soft.png', 'key', 128, { noTrim: true }],
   ['angkor_wall_top_view.jpg', 'wall_block.png', 'full', 128, { inset: 0.04, cropTop: 0.52, seamless: 0.14 }],
   ['angkor_wall_top_view.jpg', 'wall_top.png', 'full', 128, { inset: 0.04, cropTop: 0.48, seamless: 0.16 }],
   ['angkor_wall_top_view.jpg', 'jungle_fill.png', 'full', 256, { inset: 0.05, cropTop: 0.55, seamless: 0.18 }],
+  ['boulder_face.jpg', 'boulder_face.png', 'key', 128],
+  ['snake_green.jpg', 'snake_green.png', 'key', 128],
+  ['chest_wood.jpg', 'chest_wood.png', 'key', 128],
+  ['chest_wood.jpg', 'chest_secret.png', 'key', 128],
+  ['checkpoint_pad.jpg', 'checkpoint_pad.png', 'key', 128],
   ['red_diamond.jpg', 'red_diamond.png', 'key', 128],
   ['exit_door_closed.jpg', 'exit_door_closed.png', 'key', 384],
   ['exit_door_open.jpg', 'exit_door_open.png', 'key', 384],
@@ -275,14 +281,52 @@ for (const [source, output, mode, size, opts = {}] of entries) {
   if (mode !== 'full') {
     keyImage(img, mode === 'keycenter' ? (Math.floor(img.height / 2) * img.width + Math.floor(img.width / 2)) * 4 : 0);
     if (opts.clearCenter) clearCenter(img, opts.clearCenter);
-    if (mode !== 'keycenter') img = trim(img);
+    if (mode !== 'keycenter' && !opts.noTrim) img = trim(img);
   }
+  if (opts.noTrim) scrubMagentaSpeckles(img);
   if (opts.seamless) img = makeSeamless(img, opts.seamless);
   if (opts.rotate90) img = rotate90(img);
   let ow, oh;
-  if (opts.seamless) { ow = oh = size; }
+  if (opts.seamless || opts.noTrim) { ow = oh = size; }
   else if (mode === 'full' || mode === 'keycenter') { ow = size; oh = Math.round((size * img.height) / img.width); }
   else { const s = size / Math.max(img.width, img.height); ow = Math.max(1, Math.round(img.width * s)); oh = Math.max(1, Math.round(img.height * s)); }
   writePng(path.join(outputDir, output), resample(img, ow, oh));
   console.log(`${output} ${ow}x${oh}`);
+}
+
+/** Kill leftover magenta key pixels inside full-tile grass (tiny pink flowers / bleed). */
+function scrubMagentaSpeckles(img) {
+  const { width, height, px } = img;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], g = px[i + 1], b = px[i + 2], a = px[i + 3];
+    if (a < 0.05) continue;
+    const magenta = Math.min(r, b) - g;
+    if (magenta > 0.12 && r > 0.45 && b > 0.35) {
+      // Replace with nearby olive so the tile stays opaque edge-to-edge.
+      px[i] = 0.22; px[i + 1] = 0.38; px[i + 2] = 0.16; px[i + 3] = 1;
+      continue;
+    }
+    // Soften pinkish spill toward green.
+    if (magenta > 0.04) {
+      px[i] = clamp01(r - magenta);
+      px[i + 2] = clamp01(b - magenta);
+      px[i + 1] = clamp01(g + magenta * 0.35);
+    }
+  }
+  // Fill fully transparent holes so FitCell reads as a solid square tile.
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const i = (y * width + x) * 4;
+    if (px[i + 3] >= 0.15) continue;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const j = (ny * width + nx) * 4;
+      if (px[j + 3] < 0.2) continue;
+      r += px[j]; g += px[j + 1]; b += px[j + 2]; n++;
+    }
+    if (n === 0) { px[i] = 0.18; px[i + 1] = 0.32; px[i + 2] = 0.12; }
+    else { px[i] = r / n; px[i + 1] = g / n; px[i + 2] = b / n; }
+    px[i + 3] = 1;
+  }
 }

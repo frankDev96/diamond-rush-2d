@@ -23,12 +23,12 @@ Sorting orders (world sprites): floor 0, wall shadow 1, dirt 2, walls 3, door gl
 | `floor_stone_alt.png` | 128×128 | `angkor_floor_tile.png` | Full, rotated 90° | Floor variant (~42%). |
 | `floor_moss.png` | 128×128 | `angkor_floor_tile.png` | Full, lighter inset | Same art with more corner moss (~18%). |
 | `floor_cracked.png` | 128×128 | procedural (`generate_extra_art.mjs`) | Full | Cracked stone variant (~10%). |
-| `boulder_face.png` | 128×128 | procedural | Full | Pushable boulder (~0.92 cells). |
-| `snake_green.png` | 128×128 | procedural | Full | Patrolling snake (`GridWorldController`). |
-| `chest_wood.png` / `chest_secret.png` | 128×128 | procedural | Full | +4 / +8 purple when stepped on. |
+| `boulder_face.png` | 128×128 | `boulder_face.jpg` (Angkor L1 concept) | Key | Pushable face boulder (~0.92 cells). |
+| `snake_green.png` | 128×128 | `snake_green.jpg` (Angkor L1 concept) | Key | Patrolling snake (`GridWorldController`). |
+| `chest_wood.png` / `chest_secret.png` | 128×128 | `chest_wood.jpg` | Key | +4 / +8 purple when stepped on. |
 | `trap_fire.png` / `trap_spear.png` | 128×128 | procedural | Full | Fire damage; spear toggles every ~0.7 s. |
-| `checkpoint_pad.png` | 128×128 | procedural | Full | Sets respawn; backpack **RETURN** from level 7+. |
-| `dirt_soft.png` | 128×128 | `dirt_soft.jpg` | Full | Soft dirt over floor; shrinks + fades when dug. |
+| `checkpoint_pad.png` | 128×128 | `checkpoint_pad.jpg` (Angkor L1 concept) | Key | Sets respawn; backpack **RETURN** from level 7+. |
+| `dirt_soft.png` | 128×128 (full cell) | `dirt_soft.jpg` (edge-to-edge grass) | Key, noTrim | Soft-clear grass filling the square tile; live `BushSway` breeze; rustles then clears on bump. |
 | `wall_block.png` | 128×128, seamless | `angkor_wall_top_view.jpg` | Full | Oblique **top** of vertical wall (floor south / E–W corridors); one cell tall. |
 | `wall_top.png` | 128×128, seamless | `angkor_wall_top_view.jpg` | Full | North rim + inner mass caps. |
 | `jungle_fill.png` | 256×256, seamless | `angkor_wall_top_view.jpg` | Full, tiled | Stone + moss fill for deep solid cells. |

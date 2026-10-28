@@ -275,12 +275,10 @@ public class GridBoard : MonoBehaviour
 
         if (cell == GridCell.Dirt)
         {
-            var dirt = SpawnTile("Dirt", dirtSprite, position, DirtOrder);
+            // Soft-clear tile: full-cell jungle grass (still GridCell.Dirt for dig rules).
+            var dirt = SpawnGrass(dirtSprite, position, hash);
             if (dirt != null)
-            {
-                dirt.flipX = (hash & 4) == 4;
                 dirtViews[new Vector2Int(x, y)] = dirt;
-            }
         }
         else if (cell == GridCell.RedGem)
             SpawnGem(x, y, position);
@@ -454,6 +452,24 @@ public class GridBoard : MonoBehaviour
         renderer.sprite = sprite;
         renderer.sortingOrder = order;
         GameplaySprites.FitCell(go.transform, sprite, cellSize * 1.01f);
+        return renderer;
+    }
+
+    SpriteRenderer SpawnGrass(Sprite sprite, Vector3 position, int hash)
+    {
+        if (sprite == null)
+            return null;
+
+        var go = new GameObject("Grass");
+        go.transform.SetParent(tilesRoot, false);
+        go.transform.position = position;
+        var renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = DirtOrder;
+        renderer.flipX = (hash & 4) == 4;
+        // Fill the square cell edge-to-edge (slight overlap hides seams between neighbours).
+        GameplaySprites.FitCell(go.transform, sprite, cellSize * 1.04f);
+        go.AddComponent<BushSway>();
         return renderer;
     }
 
@@ -642,15 +658,29 @@ public class GridBoard : MonoBehaviour
 
     public void BeginDirtCrack(int x, int y)
     {
+        BeginDirtCrack(x, y, Vector2.zero);
+    }
+
+    public void BeginDirtCrack(int x, int y, Vector2 pushDir)
+    {
         if (!InBounds(x, y) || cells[x, y] != GridCell.Dirt)
             return;
 
         var key = new Vector2Int(x, y);
-        if (dirtViews.TryGetValue(key, out var view) && view != null)
-            StartCoroutine(CrackDirt(view));
+        if (!dirtViews.TryGetValue(key, out var view) || view == null)
+            return;
+
+        var sway = view.GetComponent<BushSway>();
+        if (sway != null)
+            sway.Rustle(pushDir);
     }
 
     public bool TryDig(int x, int y)
+    {
+        return TryDig(x, y, Vector2.zero);
+    }
+
+    public bool TryDig(int x, int y, Vector2 pushDir)
     {
         if (!InBounds(x, y) || cells[x, y] != GridCell.Dirt)
             return false;
@@ -658,7 +688,7 @@ public class GridBoard : MonoBehaviour
         cells[x, y] = GridCell.Floor;
         var key = new Vector2Int(x, y);
         if (dirtViews.TryGetValue(key, out var view) && view != null)
-            StartCoroutine(ShrinkAndDestroy(view, 0.1f));
+            StartCoroutine(ClearGrass(view, pushDir, 0.22f));
         dirtViews.Remove(key);
         return true;
     }
@@ -720,31 +750,68 @@ public class GridBoard : MonoBehaviour
         StartCoroutine(Pulse(doorView.transform, 1.08f, 0.4f));
     }
 
-    IEnumerator CrackDirt(SpriteRenderer view)
+    IEnumerator ClearGrass(SpriteRenderer view, Vector2 pushDir, float duration = 0.22f)
     {
         if (view == null)
             yield break;
 
-        var startScale = view.transform.localScale;
-        var origin = view.transform.position;
-        var baseColor = view.color;
-        var t = 0f;
-        const float duration = 0.12f;
-        while (t < duration && view != null)
+        var sway = view.GetComponent<BushSway>();
+        if (sway != null)
+            sway.Rustle(pushDir);
+
+        // Let the live breeze + rustle read for a beat, then part and fade.
+        var keepSway = Mathf.Min(0.08f, duration * 0.35f);
+        var waited = 0f;
+        while (waited < keepSway && view != null)
         {
-            t += Time.deltaTime;
-            var k = Mathf.Clamp01(t / duration);
-            var wobble = Mathf.Sin(k * Mathf.PI * 3f) * 0.015f;
-            view.transform.localScale = startScale * (1f - 0.22f * k);
-            view.transform.position = origin + new Vector3(wobble, 0.02f * k, 0f);
-            view.color = Color.Lerp(baseColor, new Color(baseColor.r * 0.75f, baseColor.g * 0.75f, baseColor.b * 0.75f, baseColor.a), k);
+            waited += Time.deltaTime;
             yield return null;
         }
+
+        if (sway != null)
+            sway.enabled = false;
+
+        if (view == null)
+            yield break;
+
+        var start = view.transform.localScale;
+        var startRot = view.transform.localRotation;
+        var origin = view.transform.position;
+        var color = view.color;
+        var push = pushDir.sqrMagnitude > 0.0001f ? pushDir.normalized : Vector2.right;
+        var t = 0f;
+        var clearDuration = Mathf.Max(0.05f, duration - keepSway);
+        while (t < clearDuration && view != null)
+        {
+            t += Time.deltaTime;
+            var k = Mathf.Clamp01(t / clearDuration);
+            var flutter = Mathf.Sin(k * Mathf.PI * 6f) * (1f - k);
+            view.transform.localScale = new Vector3(
+                start.x * (1f - 0.35f * k + flutter * 0.06f),
+                start.y * (1f - 0.7f * k),
+                start.z);
+            view.transform.localRotation = startRot * Quaternion.Euler(0f, 0f, (18f * push.x + flutter * 10f) * k);
+            view.transform.position = origin + new Vector3(push.x * 0.08f * k, 0.04f * k, 0f);
+            color.a = 1f - k;
+            view.color = color;
+            yield return null;
+        }
+
+        if (view != null)
+            Destroy(view.gameObject);
     }
 
     IEnumerator ShrinkAndDestroy(SpriteRenderer view, float duration = 0.18f)
     {
+        if (view == null)
+            yield break;
+
+        var sway = view.GetComponent<BushSway>();
+        if (sway != null)
+            sway.enabled = false;
+
         var start = view.transform.localScale;
+        var startRot = view.transform.localRotation;
         var color = view.color;
         var t = 0f;
         while (t < duration && view != null)
@@ -752,6 +819,7 @@ public class GridBoard : MonoBehaviour
             t += Time.deltaTime;
             var k = Mathf.Clamp01(t / duration);
             view.transform.localScale = start * (1f - 0.55f * k);
+            view.transform.localRotation = startRot * Quaternion.Euler(0f, 0f, 12f * k);
             color.a = 1f - k;
             view.color = color;
             yield return null;

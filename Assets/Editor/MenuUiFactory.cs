@@ -153,7 +153,8 @@ public static class MenuUiFactory
 
     public static Button CreateMenuButton(Transform parent, string sprite, string title, string subtitle, float height, float leftInset, out TMP_Text subtitleText)
     {
-        var go = CreateSprite("Button " + title, parent, sprite, false);
+        var label = string.IsNullOrEmpty(title) ? Path.GetFileNameWithoutExtension(sprite) : title;
+        var go = CreateSprite("Button " + label, parent, sprite, false);
         var layout = go.AddComponent<LayoutElement>();
         layout.preferredHeight = height;
         layout.minHeight = height;
@@ -167,28 +168,39 @@ public static class MenuUiFactory
         button.colors = colors;
 
         var hasSubtitle = !string.IsNullOrEmpty(subtitle);
-        var titleText = CreateText("Title", go.transform, title, hasSubtitle ? 34 : 32, FontStyles.Bold, Title, TextAlignmentOptions.Center);
-        ApplyOutline(titleText, 0.2f);
-        var titleRect = titleText.rectTransform;
+        var hasTitle = !string.IsNullOrEmpty(title);
+        if (hasTitle)
+        {
+            var titleText = CreateText("Title", go.transform, title, hasSubtitle ? 34 : 32, FontStyles.Bold, Title, TextAlignmentOptions.Center);
+            ApplyOutline(titleText, 0.2f);
+            var titleRect = titleText.rectTransform;
+            if (hasSubtitle)
+            {
+                titleRect.anchorMin = new Vector2(0f, 0.38f);
+                titleRect.anchorMax = Vector2.one;
+                titleRect.offsetMin = new Vector2(leftInset, 0f);
+                titleRect.offsetMax = new Vector2(-16f, -8f);
+            }
+            else
+            {
+                Stretch(titleRect, leftInset, 8f, 16f, 8f);
+            }
+        }
+
         if (hasSubtitle)
         {
-            titleRect.anchorMin = new Vector2(0f, 0.38f);
-            titleRect.anchorMax = Vector2.one;
-            titleRect.offsetMin = new Vector2(leftInset, 0f);
-            titleRect.offsetMax = new Vector2(-16f, -8f);
             subtitleText = CreateText("Subtitle", go.transform, subtitle, 16, FontStyles.Bold, Subtitle, TextAlignmentOptions.Center);
             subtitleText.textWrappingMode = TextWrappingModes.NoWrap;
             ApplyOutline(subtitleText, 0.15f);
             var subtitleRect = subtitleText.rectTransform;
             subtitleRect.anchorMin = Vector2.zero;
-            subtitleRect.anchorMax = new Vector2(1f, 0.46f);
+            subtitleRect.anchorMax = new Vector2(1f, hasTitle ? 0.46f : 0.34f);
             subtitleRect.offsetMin = new Vector2(leftInset, 8f);
             subtitleRect.offsetMax = new Vector2(-16f, 0f);
         }
         else
         {
             subtitleText = null;
-            Stretch(titleRect, leftInset, 8f, 16f, 8f);
         }
 
         return button;
@@ -278,6 +290,21 @@ public static class MenuUiFactory
     public static Sprite SpriteAt(string file, string folder = ArtFolder)
     {
         var path = folder + file;
+        var sprite = EnsureSingleSprite(path);
+        if (sprite != null)
+            return sprite;
+
+        Debug.LogError("No Sprite sub-asset after import: " + path);
+        return null;
+    }
+
+    /// <summary>
+    /// Multiple-mode leftovers (named _0 slices / out-of-bounds rects / nameFileIdTable /
+    /// internalIDToNameTable) survive PNG swaps. Empty Multiple sheets yield zero sprites.
+    /// Always normalize to Single and verify a Sprite sub-asset exists.
+    /// </summary>
+    public static Sprite EnsureSingleSprite(string path)
+    {
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null)
         {
@@ -285,29 +312,84 @@ public static class MenuUiFactory
             return null;
         }
 
-        var settings = new TextureImporterSettings();
-        importer.ReadTextureSettings(settings);
-        var changed = importer.textureType != TextureImporterType.Sprite
-            || importer.mipmapEnabled
-            || !importer.alphaIsTransparency
-            || settings.spriteMeshType != SpriteMeshType.FullRect;
-        importer.textureType = TextureImporterType.Sprite;
-        importer.spriteImportMode = SpriteImportMode.Single;
-        importer.mipmapEnabled = false;
-        importer.alphaIsTransparency = true;
-        settings.spriteMeshType = SpriteMeshType.FullRect;
-        settings.alphaIsTransparency = true;
-        importer.SetTextureSettings(settings);
-        if (changed)
-            importer.SaveAndReimport();
-
-        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            if (asset is Sprite sprite)
+            var settings = new TextureImporterSettings();
+            importer.ReadTextureSettings(settings);
+            ClearSpriteSheetLeftovers(importer);
+
+            var needsReimport = importer.textureType != TextureImporterType.Sprite
+                || importer.spriteImportMode != SpriteImportMode.Single
+                || settings.spriteMode != (int)SpriteImportMode.Single
+                || importer.mipmapEnabled
+                || !importer.alphaIsTransparency
+                || settings.spriteMeshType != SpriteMeshType.FullRect
+                || AssetDatabase.LoadAssetAtPath<Sprite>(path) == null;
+
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.mipmapEnabled = false;
+            importer.alphaIsTransparency = true;
+            settings.spriteMode = (int)SpriteImportMode.Single;
+            settings.spriteMeshType = SpriteMeshType.FullRect;
+            settings.alphaIsTransparency = true;
+            importer.SetTextureSettings(settings);
+
+            if (needsReimport || attempt > 0)
+            {
+                importer.SaveAndReimport();
+                importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            }
+
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            if (sprite != null)
                 return sprite;
+
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (asset is Sprite s)
+                    return s;
+            }
         }
 
         return null;
+    }
+
+    static void ClearSpriteSheetLeftovers(TextureImporter importer)
+    {
+        var so = new SerializedObject(importer);
+        var dirty = false;
+        foreach (var propName in new[]
+                 {
+                     "m_SpriteSheet.m_Sprites",
+                     "m_SpriteSheet.m_NameFileIdTable",
+                     "m_NameFileIdTable",
+                     "m_InternalIDToNameTable"
+                 })
+        {
+            var prop = so.FindProperty(propName);
+            if (prop != null && prop.isArray && prop.arraySize > 0)
+            {
+                prop.arraySize = 0;
+                dirty = true;
+            }
+        }
+
+        if (dirty)
+            so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    public static void EnsureAllMenuSprites()
+    {
+        foreach (var folder in new[] { ArtFolder, MapArtFolder })
+        {
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { folder.TrimEnd('/') }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase))
+                    EnsureSingleSprite(path);
+            }
+        }
     }
 
     public static void Stretch(RectTransform rect)

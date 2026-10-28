@@ -1,0 +1,31 @@
+---
+description: Capture valid user criticism into project skills so delivery gets faster over time.
+alwaysApply: true
+---
+
+# Capture valid feedback into skills
+
+On every prompt, treat user comments, criticism, and taste notes as candidate skill updates.
+
+## When a comment is valid
+
+Valid if it is about this project and improves future work: UI/UX taste, visual polish, art style, naming, mechanics that match the PRD, pipelines, rebuild steps, traps, or “do / don’t” product rules.
+
+Skip one-off typos in chat, temporary debug asks, secrets, and anything that contradicts `docs/GAME_PRD.md` (PRD still wins on product/mechanics).
+
+## What to do in the same turn
+
+1. Fix the immediate issue the user pointed out.
+2. Extract a short durable rule from the **prompt + your fix** (what went wrong, what to do next time).
+3. Append it to the matching skill before finishing:
+   - Player-facing UI / Home / World Select / HUD → [`.cursor/skills/diamond-rush-mobile-ui/SKILL.md`](../skills/diamond-rush-mobile-ui/SKILL.md) (`## Learned` or `## Traps`).
+   - Blender / renders / Home art install → [`.agents/skills/diamond-rush-blender/SKILL.md`](../../.agents/skills/diamond-rush-blender/SKILL.md).
+   - Gameplay art / levels / camera → [`.cursor/skills/diamond-rush-mobile-ui/gameplay-pipeline.md`](../skills/diamond-rush-mobile-ui/gameplay-pipeline.md).
+4. Prefer one sharp bullet over a long essay. Do not duplicate the PRD.
+5. In the reply, briefly say what was added to which skill when you captured feedback.
+
+## Conflict order
+
+1. `docs/GAME_PRD.md` — product and mechanics.
+2. Captured learned bullets in skills — taste, polish, traps, process.
+3. Mobile-ui skill — canvas, hit targets, Home compactness.

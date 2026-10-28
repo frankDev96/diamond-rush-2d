@@ -24,8 +24,10 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] float stepDuration = 0.18f;
     [Tooltip("1 = design speed. Applied to grid step time.")]
     [SerializeField] float walkSpeedScale = 1f;
-    [Tooltip("Walk cycle rate while moving (explorer GIF: 5 strides / 2.5s = 2 Hz). Decoupled from step duration for smooth legs/bob.")]
+    [Tooltip("Fallback Hz when not mid-step. During a grid step, legs lock to one full cycle per cell so feet match the floor.")]
     [SerializeField] float strideCyclesPerSecond = 2f;
+    [Tooltip("How many walk cycles complete across one cell step (1 = one full stride per tile).")]
+    [SerializeField] float strideCyclesPerStep = 1f;
     [SerializeField] float deadZone = 0.3f;
     [SerializeField] float cornerAssist = 0.35f;
 
@@ -36,9 +38,9 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] float settleDuration = 0.02f;
 
     [Header("Visual walk feel")]
-    [SerializeField] float walkBobAmplitude = 0.028f;
-    [SerializeField] float strideSkew = 0.012f;
-    [SerializeField] float leanAngle = 4f;
+    [SerializeField] float walkBobAmplitude = 0.036f;
+    [SerializeField] float strideSkew = 0.018f;
+    [SerializeField] float leanAngle = 5.5f;
     [SerializeField] float leanSmooth = 16f;
     [SerializeField] float pivotSquashDuration = 0.08f;
     [SerializeField] Vector2 pivotSquashScale = new Vector2(1.07f, 0.93f);
@@ -47,8 +49,6 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] float horizontalPivotSeconds = 0.05f;
 
     [Header("Interaction timing")]
-    [SerializeField] float digAnticipation = 0.12f;
-    [SerializeField] float digLeanDegrees = 12f;
     [SerializeField] float pushBraceDelay = 0.12f;
     [SerializeField] float pushStepMultiplier = 2f;
     [SerializeField] float pushBobMultiplier = 1.35f;
@@ -353,13 +353,17 @@ public class PlayerGridMotor : MonoBehaviour
                     break;
             }
 
-            if (fromIdle && NeedsHorizontalPivot(direction))
-                yield return HorizontalPivotRoutine();
-
             var previousFacing = facing;
+            // Snap to the true facing sprite immediately (down / up / side+flipX).
+            // Do not route left↔right reverses through a fake "down" pose — that only
+            // made sense when all facings shared one identical sheet.
             Face(direction);
             if (fromIdle && previousFacing != direction && previousFacing != Vector2Int.zero)
+            {
                 TriggerPivotSquash();
+                if (NeedsFacingTurnBeat(previousFacing, direction))
+                    yield return FacingTurnBeat();
+            }
 
             var moveDir = direction;
             direction = Vector2Int.zero;
@@ -395,27 +399,21 @@ public class PlayerGridMotor : MonoBehaviour
         PushAnimatorState(false, false, false);
     }
 
-    bool NeedsHorizontalPivot(Vector2Int newDirection)
+    bool NeedsFacingTurnBeat(Vector2Int from, Vector2Int to)
     {
-        if (newDirection.x == 0 || facing.x == 0)
+        if (from == Vector2Int.zero || to == Vector2Int.zero || from == to)
             return false;
-        return newDirection.x != facing.x;
+        // Any 90°/180° facing change gets a short plant beat so the new sheet reads.
+        return from != to;
     }
 
-    IEnumerator HorizontalPivotRoutine()
+    IEnumerator FacingTurnBeat()
     {
-        stepping = true;
-        facing = Vector2Int.down;
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.flipX = false;
-            spriteRenderer.sprite = downSprite != null ? downSprite : (walkDown != null && walkDown.Length > 1 ? walkDown[1] : null);
-        }
-        ResetVisualImmediate();
+        // Brief planted beat on the new facing sprite (side mirrored for left).
         PushAnimatorState(false, false, false);
+        ShowIdlePose();
+        ResetVisualImmediate();
         yield return new WaitForSeconds(horizontalPivotSeconds);
-        if (!chainingSteps)
-            stepping = false;
     }
 
     IEnumerator WallContactRoutine(Vector2Int direction)
@@ -486,24 +484,29 @@ public class PlayerGridMotor : MonoBehaviour
     {
         var duration = StepDurationSeconds(pushing);
         var heavyBob = pushing ? pushBobMultiplier : 1f;
-        var isDig = entering == GridCell.Dirt;
+        var isBush = entering == GridCell.Dirt;
 
-        PushAnimatorState(true, isDig, pushing);
+        PushAnimatorState(true, isBush, pushing);
         if (fromIdle)
             TriggerPivotSquash();
 
         var from = transform.position;
         var to = board.CellToWorld(target.x, target.y);
 
-        if (isDig)
+        // Bump into soft grass → rustle, clear, keep walking (no dig halt).
+        if (isBush)
         {
-            PushAnimatorState(true, true, false);
-            var edge = Vector3.Lerp(from, to, 0.5f);
-            yield return DigAnticipation(session, target, to, edge);
-            from = edge;
+            var push = (Vector2)(to - from);
+            board.BeginDirtCrack(target.x, target.y, push);
+            if (board.TryDig(target.x, target.y, push))
+                session.OnDug(to);
             entering = GridCell.Floor;
-            duration *= 0.55f;
+            PushAnimatorState(true, false, pushing);
         }
+
+        var strideStart = stridePhaseRadians;
+        var cycles = Mathf.Max(0.25f, strideCyclesPerStep) * (pushing ? 0.85f : 1f);
+        lastPlantedFrame = -1;
 
         var t = 0f;
         while (t < duration)
@@ -514,7 +517,8 @@ public class PlayerGridMotor : MonoBehaviour
             var eased = fromIdle ? easeInFromRest.Evaluate(k) : easeChain.Evaluate(k);
             transform.position = Vector3.Lerp(from, to, eased);
 
-            AdvanceStride(dt, pushing);
+            // Lock legs to floor travel: one stride cycle maps across the eased cell step.
+            stridePhaseRadians = strideStart + eased * cycles * Mathf.PI * 2f;
             var frame = WalkFrameFromStride();
             ApplyWalkVisuals(frame, true, heavyBob);
             TryFootPlant(session, frame);
@@ -524,6 +528,8 @@ public class PlayerGridMotor : MonoBehaviour
 
         transform.position = to;
         gridPos = target;
+        // Land on a contact frame so the next chained step starts cleanly.
+        stridePhaseRadians = Mathf.Round(stridePhaseRadians / (Mathf.PI * 0.5f)) * (Mathf.PI * 0.5f);
 
         session.OnEnteredCell(target, entering);
 
@@ -558,79 +564,6 @@ public class PlayerGridMotor : MonoBehaviour
     Vector3 FeetWorld()
     {
         return transform.position + Vector3.up * (visualBaseLocalPosition.y + 0.03f);
-    }
-
-    IEnumerator DigAnticipation(GameplaySessionController session, Vector2Int dirtCell, Vector3 digWorld, Vector3 edgeWorld)
-    {
-        stepping = true;
-        board.BeginDirtCrack(dirtCell.x, dirtCell.y);
-        session.OnDigLungeStart(digWorld, facing, visual);
-
-        var t = 0f;
-        var rootFrom = transform.position;
-        var lungeDir = (digWorld - rootFrom).normalized;
-        ShowIdlePose();
-        PushAnimatorState(false, true, false);
-
-        while (t < digAnticipation)
-        {
-            t += Time.deltaTime;
-            var k = Mathf.Clamp01(t / digAnticipation);
-            var squashK = Mathf.Sin(k * Mathf.PI);
-
-            // Halt root translation at the shared edge between floor and dirt cells.
-            transform.position = Vector3.Lerp(rootFrom, edgeWorld, squashK);
-
-            if (visual != null)
-            {
-                var leanScale = visualBaseLocalScale;
-                var leanPos = visualBaseLocalPosition;
-                var leanRot = Quaternion.identity;
-
-                if (facing.x != 0)
-                {
-                    var lean = digLeanDegrees * squashK * (facing == Vector2Int.right ? -1f : 1f);
-                    leanRot = Quaternion.Euler(0f, 0f, lean);
-                    leanScale = new Vector3(
-                        visualBaseLocalScale.x * Mathf.Lerp(1f, pivotSquashScale.x, squashK),
-                        visualBaseLocalScale.y * Mathf.Lerp(1f, pivotSquashScale.y, squashK),
-                        visualBaseLocalScale.z);
-                    leanPos = visualBaseLocalPosition + lungeDir * (0.06f * squashK);
-                }
-                else if (facing == Vector2Int.up)
-                {
-                    leanScale = new Vector3(
-                        visualBaseLocalScale.x * (1f + 0.06f * squashK),
-                        visualBaseLocalScale.y * (1f - 0.10f * squashK),
-                        visualBaseLocalScale.z);
-                    leanPos = visualBaseLocalPosition + Vector3.up * (0.05f * squashK);
-                }
-                else if (facing == Vector2Int.down)
-                {
-                    leanScale = new Vector3(
-                        visualBaseLocalScale.x * (1f + 0.05f * squashK),
-                        visualBaseLocalScale.y * (1f - 0.08f * squashK),
-                        visualBaseLocalScale.z);
-                    leanPos = visualBaseLocalPosition + Vector3.down * (0.04f * squashK);
-                }
-
-                visual.localScale = leanScale;
-                visual.localPosition = leanPos;
-                visual.localRotation = leanRot;
-            }
-
-            ApplyShadowFromBob(squashK * 0.15f);
-            yield return null;
-        }
-
-        transform.position = edgeWorld;
-
-        if (board.TryDig(dirtCell.x, dirtCell.y))
-            session.OnDug(digWorld);
-
-        ResetVisualImmediate();
-        if (!chainingSteps)
-            stepping = false;
     }
 
     IEnumerator SettleVisual()
@@ -844,10 +777,6 @@ public class PlayerGridMotor : MonoBehaviour
     void Face(Vector2Int direction)
     {
         facing = direction;
-        if (spriteRenderer == null)
-            return;
-
-        spriteRenderer.flipX = direction == Vector2Int.left;
         ApplyFrame(walking ? walkFrameIndex : -1);
     }
 
@@ -860,6 +789,9 @@ public class PlayerGridMotor : MonoBehaviour
     {
         if (spriteRenderer == null)
             return;
+
+        // Left uses the right-facing side sheet mirrored.
+        spriteRenderer.flipX = facing == Vector2Int.left;
 
         var frames = FramesFor(facing);
         Sprite sprite;
