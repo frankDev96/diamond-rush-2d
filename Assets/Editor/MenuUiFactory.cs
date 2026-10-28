@@ -11,6 +11,7 @@ public static class MenuUiFactory
 {
     public const string ArtFolder = "Assets/Art/Home/";
     public const string MapArtFolder = "Assets/Art/Map/";
+    public const string GameplayArtFolder = "Assets/Art/Gameplay/Angkor/";
     public const string MusicPath = "Assets/Audio/The_Gilded_Labyrinth.wav";
     public const string AngkorMusicPath = "Assets/Audio/ankor-wat-bgm.wav";
     public const string LevelEntryMusicPath = "Assets/Audio/Ankorwat-level entry-music.wav";
@@ -390,6 +391,10 @@ public static class MenuUiFactory
                     EnsureSingleSprite(path);
             }
         }
+
+        // World Select / HUD chips reuse gameplay gem icons — force Single only on those.
+        foreach (var file in new[] { "icon_red.png", "icon_purple.png", "icon_lives_head.png" })
+            EnsureSingleSprite(GameplayArtFolder + file);
     }
 
     public static void Stretch(RectTransform rect)

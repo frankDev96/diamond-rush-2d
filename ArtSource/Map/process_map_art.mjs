@@ -37,18 +37,20 @@ function resolveSource(name) {
 }
 
 const jobs = [
+  // Full-bleed jungle backdrop — no chroma key.
   { src: 'map_frame.jpg', out: 'map_frame.png', w: 1920, h: 1080, mode: 'full' },
-  { src: 'map_parchment.jpg', out: 'map_parchment.png', w: 960, h: 720, mode: 'full' },
-  { src: 'world_row_active.jpg', out: 'world_row_active.png', w: 1268, h: 233, mode: 'full' },
-  { src: 'world_row_locked.jpg', out: 'world_row_locked.png', w: 724, h: 263, mode: 'full' },
+  // Magenta-backed UI plates — Key + trim so pink never ships.
+  { src: 'map_parchment.jpg', out: 'map_parchment.png', w: 1240, h: 860, mode: 'key' },
+  { src: 'world_row_active.jpg', out: 'world_row_active.png', w: 1120, h: 220, mode: 'key' },
+  { src: 'world_row_locked.jpg', out: 'world_row_locked.png', w: 1120, h: 220, mode: 'key' },
   { src: 'node_cleared.jpg', out: 'node_cleared.png', w: 260, h: 272, mode: 'key' },
   { src: 'node_current.jpg', out: 'node_current.png', w: 340, h: 354, mode: 'key' },
   { src: 'node_locked.jpg', out: 'node_locked.png', w: 262, h: 273, mode: 'key' },
-  { src: 'preview_card.jpg', out: 'preview_card.png', w: 1120, h: 220, mode: 'full' },
-  { src: 'play_button.jpg', out: 'play_button.png', w: 715, h: 289, mode: 'key' },
-  { src: 'title_banner.jpg', out: 'title_banner.png', w: 1276, h: 200, mode: 'key' },
-  { src: 'courtyard_thumb.jpg', out: 'courtyard_thumb.png', w: 1051, h: 759, mode: 'full' },
-  { src: 'hud_chip.jpg', out: 'hud_chip.png', w: 280, h: 80, mode: 'key' },
+  { src: 'preview_card.jpg', out: 'preview_card.png', w: 1120, h: 220, mode: 'key' },
+  { src: 'play_button.jpg', out: 'play_button.png', w: 560, h: 160, mode: 'key' },
+  { src: 'title_banner.jpg', out: 'title_banner.png', w: 900, h: 140, mode: 'key' },
+  { src: 'courtyard_thumb.jpg', out: 'courtyard_thumb.png', w: 560, h: 420, mode: 'full' },
+  { src: 'hud_chip.jpg', out: 'hud_chip.png', w: 320, h: 88, mode: 'key' },
   { src: 'hud_plaque_gold.jpg', out: 'hud_plaque_gold.png', w: 256, h: 128, mode: 'key' },
   { src: 'heart.jpg', out: 'heart.png', w: 96, h: 96, mode: 'key' },
 ];
