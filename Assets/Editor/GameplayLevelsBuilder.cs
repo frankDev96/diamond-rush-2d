@@ -5,7 +5,7 @@ using UnityEditor;
 public static class GameplayLevelsBuilder
 {
     // Bump when Level 2-9 rows / scene wiring change. Missing scenes always rebuild.
-    const int LayoutVersion = 19;
+    const int LayoutVersion = 20;
 
     static GameplayLevelsBuilder()
     {

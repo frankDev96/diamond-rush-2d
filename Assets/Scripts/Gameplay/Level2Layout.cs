@@ -1,9 +1,9 @@
 public static class Level2Layout
 {
-    public const int Width = 34;
-    public const int Height = 18;
-    public const int RequiredReds = 2;
-    public const int TotalReds = 4;
+    public const int Width = 40;
+    public const int Height = 26;
+    public const int RequiredReds = 3;
+    public const int TotalReds = 5;
     public const int ExtraReds = TotalReds - RequiredReds;
     public const string StageName = "THE COURTYARD";
     public const string TutorialHint = "Push Boulders!";
@@ -21,27 +21,35 @@ public static class Level2Layout
         Rows = Rows,
     };
 
-    // Multi-room Courtyard from overview map (PRD L2: dig + push boulders, no snakes/traps).
-    // Idol Hall (NW), Dig Garden (N), Vault (E), Lab pocket (NE), Boulder courtyard (SE), spawn SW.
+    // Pixel-mockup rooms (1408×896 / 36px): SW dig spawn, Idol Hall + EE, Sacred Spring dig,
+    // Central Hub, Vault chests, Serpent corridors as open floor (no S until L3).
     public static readonly string[] Rows =
     {
-            "###############EE#################",
-            "############...........###########",
-            "############..ddd......####......#",
-            "#..........#..drd.ddd..####..ddd.#",
-            "#.....B.......ddd.drd..####..drd.#",
-            "#...B.............ddd....##..ddd.#",
-            "#.dd...B...#.............##......#",
-            "#.dd.......#.............##......#",
-            "#..........######..###..........##",
-            "#dd..############..###.....t...###",
-            "#dddd############..###..T......###",
-            "#rddd#########..............g..###",
-            "###..#########.......B.........###",
-            "###..#########..B........#########",
-            "#.................B......#########",
-            "#.P...................B..#########",
-            "#.......######...........#########",
-            "##################################",
+            "###########EE###########################",
+            "###########..###########################",
+            "###########..####dddddd#################",
+            "#######..B..B....drdddd.........########",
+            "#######........##dddddd#........########",
+            "#######........##dddddd#........########",
+            "#.....#.B....B.####.####........#.....##",
+            "#.....#........####.#######.#####.....##",
+            "#.....#..B..B..##......####.#####.....##",
+            "#..g...........#ddd....#T.....T.......##",
+            "#.....#........#drddd..#........#.....##",
+            "#.....####B#####dddrd..#.Tt.....#.....##",
+            "##########.######.ddd..#..g.....#.....##",
+            "#####....ddTddd..........T............##",
+            "#####....dddddd..#######........#.....##",
+            "#####.g..dddddd..##.####################",
+            "#####....ddddddB.##.####################",
+            "#####....ddddrd..##.....ddd........#####",
+            "#####....ddBddd.........drd........#####",
+            "#####....dddddd..##.....ddd........#####",
+            "#####......P.....##................#####",
+            "#####............##................#####",
+            "###################................#####",
+            "########################################",
+            "########################################",
+            "########################################",
     };
 }
