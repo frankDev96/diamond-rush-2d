@@ -4,7 +4,7 @@ using UnityEditor;
 [InitializeOnLoad]
 public static class GameplayLevelsBuilder
 {
-    const int LayoutVersion = 8;
+    const int LayoutVersion = 9;
 
     static GameplayLevelsBuilder()
     {

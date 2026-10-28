@@ -22,8 +22,10 @@ public class PlayerGridMotor : MonoBehaviour
 
     [Header("Grid timing")]
     [SerializeField] float stepDuration = 0.18f;
-    [Tooltip("1 = design speed. 0.5 = half speed (testing). Applied to grid step time.")]
-    [SerializeField] float walkSpeedScale = 0.5f;
+    [Tooltip("1 = design speed. Applied to grid step time.")]
+    [SerializeField] float walkSpeedScale = 1f;
+    [Tooltip("Walk cycle rate while moving (explorer GIF: 5 strides / 2.5s = 2 Hz). Decoupled from step duration for smooth legs/bob.")]
+    [SerializeField] float strideCyclesPerSecond = 2f;
     [SerializeField] float deadZone = 0.3f;
     [SerializeField] float cornerAssist = 0.35f;
 
@@ -31,7 +33,7 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] AnimationCurve easeInFromRest = DefaultEaseIn();
     [SerializeField] AnimationCurve easeOutToRest = DefaultEaseOut();
     [SerializeField] AnimationCurve easeChain = AnimationCurve.Linear(0f, 0f, 1f, 1f);
-    [SerializeField] float settleDuration = 0.05f;
+    [SerializeField] float settleDuration = 0.02f;
 
     [Header("Visual walk feel")]
     [SerializeField] float walkBobAmplitude = 0.028f;
@@ -75,6 +77,7 @@ public class PlayerGridMotor : MonoBehaviour
     bool visualBaselineCached;
     float cornerSlideVisual;
     Vector2Int cornerSlideDir;
+    float stridePhaseRadians;
 
     public Vector2Int GridPosition => gridPos;
     public Vector2 FacingVector => new Vector2(facing.x, facing.y);
@@ -305,7 +308,14 @@ public class PlayerGridMotor : MonoBehaviour
         var chosen = dotA >= dotB ? optionA : optionB;
         var lateralMag = Mathf.Max(dotA, dotB);
 
-        // Within 35% corner tolerance and corridor cell is open
+        // Joystick within ~35% of the perpendicular axis → slide along the open corridor.
+        var blockedMag = Mathf.Abs(blockedPrimary.x != 0 ? norm.y : norm.x);
+        if (blockedMag >= cornerAssist && lateralMag >= cornerAssist * 0.65f && CanStep(chosen))
+        {
+            bestOption = chosen;
+            return true;
+        }
+
         if (lateralMag >= cornerAssist && CanStep(chosen))
         {
             bestOption = chosen;
@@ -328,33 +338,61 @@ public class PlayerGridMotor : MonoBehaviour
         if (stepping)
             yield break;
 
-        if (NeedsHorizontalPivot(direction))
-            yield return HorizontalPivotRoutine();
+        stepping = true;
+        walking = true;
+        chainingSteps = true;
+        var fromIdle = true;
+        lastPlantedFrame = -1;
 
-        var previousFacing = facing;
-        Face(direction);
-        if (previousFacing != direction && previousFacing != Vector2Int.zero)
-            TriggerPivotSquash();
-
-        var target = gridPos + direction;
-        if (board.HasBoulder(target.x, target.y))
+        while (session != null && session.AcceptsInput)
         {
-            if (board.CanPushBoulder(target, direction))
-                yield return PushStepTo(target, direction, session);
-            else
-                yield return WallContactRoutine(direction);
-            yield break;
+            if (direction == Vector2Int.zero)
+            {
+                direction = ReadDirection();
+                if (direction == Vector2Int.zero)
+                    break;
+            }
+
+            if (fromIdle && NeedsHorizontalPivot(direction))
+                yield return HorizontalPivotRoutine();
+
+            var previousFacing = facing;
+            Face(direction);
+            if (fromIdle && previousFacing != direction && previousFacing != Vector2Int.zero)
+                TriggerPivotSquash();
+
+            var moveDir = direction;
+            direction = Vector2Int.zero;
+            var target = gridPos + moveDir;
+
+            if (board.HasBoulder(target.x, target.y))
+            {
+                if (board.CanPushBoulder(target, moveDir))
+                    yield return PushStepTo(target, moveDir, session);
+                else
+                    yield return WallContactRoutine(moveDir);
+                break;
+            }
+
+            if (board.IsBlocked(target.x, target.y))
+            {
+                if (board.IsExit(target.x, target.y) && !board.ExitUnlocked)
+                    session.OnBlockedExit();
+                yield return WallContactRoutine(moveDir);
+                break;
+            }
+
+            yield return AnimateStepTo(target, board.GetCell(target.x, target.y), session, false, fromIdle);
+            fromIdle = false;
         }
 
-        if (board.IsBlocked(target.x, target.y))
-        {
-            if (board.IsExit(target.x, target.y) && !board.ExitUnlocked)
-                session.OnBlockedExit();
-            yield return WallContactRoutine(direction);
-            yield break;
-        }
-
-        yield return StepTo(target, board.GetCell(target.x, target.y), session, false);
+        chainingSteps = false;
+        walking = false;
+        stepping = false;
+        stridePhaseRadians = 0f;
+        ShowIdlePose();
+        yield return SettleVisual();
+        PushAnimatorState(false, false, false);
     }
 
     bool NeedsHorizontalPivot(Vector2Int newDirection)
@@ -376,12 +414,14 @@ public class PlayerGridMotor : MonoBehaviour
         ResetVisualImmediate();
         PushAnimatorState(false, false, false);
         yield return new WaitForSeconds(horizontalPivotSeconds);
-        stepping = false;
+        if (!chainingSteps)
+            stepping = false;
     }
 
     IEnumerator WallContactRoutine(Vector2Int direction)
     {
-        stepping = true;
+        if (!chainingSteps)
+            stepping = true;
         TriggerPivotSquash();
         var t = 0f;
         const float duration = 0.07f;
@@ -399,12 +439,12 @@ public class PlayerGridMotor : MonoBehaviour
         }
 
         ResetVisualImmediate();
-        stepping = false;
+        if (!chainingSteps)
+            stepping = false;
     }
 
     IEnumerator PushStepTo(Vector2Int target, Vector2Int direction, GameplaySessionController session)
     {
-        stepping = true;
         walking = true;
         PushAnimatorState(true, false, true);
         TriggerPivotSquash();
@@ -412,31 +452,38 @@ public class PlayerGridMotor : MonoBehaviour
         var brace = 0f;
         while (brace < pushBraceDelay)
         {
-            brace += Time.deltaTime;
-            ApplyWalkVisuals(0, true, pushBobMultiplier);
+            var dt = Time.deltaTime;
+            brace += dt;
+            AdvanceStride(dt, true);
+            ApplyWalkVisuals(WalkFrameFromStride(), true, pushBobMultiplier);
             yield return null;
         }
 
         if (!board.TryPushBoulder(target, direction, out var landing))
         {
-            stepping = false;
-            walking = false;
             PushAnimatorState(false, false, false);
             yield break;
         }
 
         session.OnBoulderPushed(board.CellToWorld(landing.x, landing.y));
-        yield return StepTo(target, GridCell.Floor, session, true);
+        yield return AnimateStepTo(target, GridCell.Floor, session, true, false);
     }
 
-    IEnumerator StepTo(Vector2Int target, GridCell entering, GameplaySessionController session, bool pushing)
+    void AdvanceStride(float deltaTime, bool pushing)
     {
-        stepping = true;
-        walking = true;
-        var fromIdle = !chainingSteps;
-        chainingSteps = true;
-        lastPlantedFrame = -1;
+        var rate = strideCyclesPerSecond * (pushing ? 0.85f : 1f);
+        stridePhaseRadians += deltaTime * rate * Mathf.PI * 2f;
+    }
 
+    int WalkFrameFromStride()
+    {
+        var quarter = Mathf.PI * 0.5f;
+        var frame = Mathf.FloorToInt(stridePhaseRadians / quarter);
+        return ((frame % 4) + 4) % 4;
+    }
+
+    IEnumerator AnimateStepTo(Vector2Int target, GridCell entering, GameplaySessionController session, bool pushing, bool fromIdle)
+    {
         var duration = StepDurationSeconds(pushing);
         var heavyBob = pushing ? pushBobMultiplier : 1f;
         var isDig = entering == GridCell.Dirt;
@@ -451,31 +498,32 @@ public class PlayerGridMotor : MonoBehaviour
         if (isDig)
         {
             PushAnimatorState(true, true, false);
-            yield return DigAnticipation(session, target, to);
-            from = transform.position;
+            var edge = Vector3.Lerp(from, to, 0.5f);
+            yield return DigAnticipation(session, target, to, edge);
+            from = edge;
             entering = GridCell.Floor;
+            duration *= 0.55f;
         }
 
         var t = 0f;
         while (t < duration)
         {
-            t += Time.deltaTime;
+            var dt = Time.deltaTime;
+            t += dt;
             var k = Mathf.Clamp01(t / duration);
             var eased = fromIdle ? easeInFromRest.Evaluate(k) : easeChain.Evaluate(k);
             transform.position = Vector3.Lerp(from, to, eased);
 
-            var frame = WalkFrameFromProgress(k);
-            ApplyWalkVisuals(frame, true, heavyBob, 0f, k);
+            AdvanceStride(dt, pushing);
+            var frame = WalkFrameFromStride();
+            ApplyWalkVisuals(frame, true, heavyBob);
             TryFootPlant(session, frame);
 
             yield return null;
         }
 
         transform.position = to;
-        walkFrameIndex = 3;
-        ApplyWalkVisuals(3, true, heavyBob, 0f, 1f);
         gridPos = target;
-        stepping = false;
 
         session.OnEnteredCell(target, entering);
 
@@ -484,16 +532,7 @@ public class PlayerGridMotor : MonoBehaviour
         else if (entering == GridCell.Exit)
             session.OnReachedExit(target);
 
-        var continueMove = ReadDirection() != Vector2Int.zero;
-        if (!continueMove)
-        {
-            chainingSteps = false;
-            walking = false;
-            ShowIdlePose();
-            yield return SettleVisual();
-        }
-
-        PushAnimatorState(continueMove, false, false);
+        PushAnimatorState(true, false, pushing);
     }
 
     void TryFootPlant(GameplaySessionController session, int frame)
@@ -521,14 +560,15 @@ public class PlayerGridMotor : MonoBehaviour
         return transform.position + Vector3.up * (visualBaseLocalPosition.y + 0.03f);
     }
 
-    IEnumerator DigAnticipation(GameplaySessionController session, Vector2Int dirtCell, Vector3 digWorld)
+    IEnumerator DigAnticipation(GameplaySessionController session, Vector2Int dirtCell, Vector3 digWorld, Vector3 edgeWorld)
     {
         stepping = true;
         board.BeginDirtCrack(dirtCell.x, dirtCell.y);
         session.OnDigLungeStart(digWorld, facing, visual);
 
         var t = 0f;
-        var lungeDir = (digWorld - transform.position).normalized;
+        var rootFrom = transform.position;
+        var lungeDir = (digWorld - rootFrom).normalized;
         ShowIdlePose();
         PushAnimatorState(false, true, false);
 
@@ -538,40 +578,59 @@ public class PlayerGridMotor : MonoBehaviour
             var k = Mathf.Clamp01(t / digAnticipation);
             var squashK = Mathf.Sin(k * Mathf.PI);
 
+            // Halt root translation at the shared edge between floor and dirt cells.
+            transform.position = Vector3.Lerp(rootFrom, edgeWorld, squashK);
+
             if (visual != null)
             {
-                visual.localScale = new Vector3(
-                    visualBaseLocalScale.x * Mathf.Lerp(1f, pivotSquashScale.x, squashK),
-                    visualBaseLocalScale.y * Mathf.Lerp(1f, pivotSquashScale.y, squashK),
-                    visualBaseLocalScale.z);
+                var leanScale = visualBaseLocalScale;
+                var leanPos = visualBaseLocalPosition;
+                var leanRot = Quaternion.identity;
 
-                // Halt at edge, slight lunge impulse forward into dirt tile
-                visual.localPosition = visualBaseLocalPosition + lungeDir * (0.08f * squashK);
+                if (facing.x != 0)
+                {
+                    var lean = digLeanDegrees * squashK * (facing == Vector2Int.right ? -1f : 1f);
+                    leanRot = Quaternion.Euler(0f, 0f, lean);
+                    leanScale = new Vector3(
+                        visualBaseLocalScale.x * Mathf.Lerp(1f, pivotSquashScale.x, squashK),
+                        visualBaseLocalScale.y * Mathf.Lerp(1f, pivotSquashScale.y, squashK),
+                        visualBaseLocalScale.z);
+                    leanPos = visualBaseLocalPosition + lungeDir * (0.06f * squashK);
+                }
+                else if (facing == Vector2Int.up)
+                {
+                    leanScale = new Vector3(
+                        visualBaseLocalScale.x * (1f + 0.06f * squashK),
+                        visualBaseLocalScale.y * (1f - 0.10f * squashK),
+                        visualBaseLocalScale.z);
+                    leanPos = visualBaseLocalPosition + Vector3.up * (0.05f * squashK);
+                }
+                else if (facing == Vector2Int.down)
+                {
+                    leanScale = new Vector3(
+                        visualBaseLocalScale.x * (1f + 0.05f * squashK),
+                        visualBaseLocalScale.y * (1f - 0.08f * squashK),
+                        visualBaseLocalScale.z);
+                    leanPos = visualBaseLocalPosition + Vector3.down * (0.04f * squashK);
+                }
 
-                // Lean torso forward 12 degrees towards dirt tile
-                var lean = digLeanDegrees * squashK;
-                if (facing == Vector2Int.right)
-                    lean = -lean;
-                else if (facing != Vector2Int.left)
-                    lean = 0f;
-
-                visual.localRotation = Quaternion.Euler(0f, 0f, lean);
+                visual.localScale = leanScale;
+                visual.localPosition = leanPos;
+                visual.localRotation = leanRot;
             }
 
             ApplyShadowFromBob(squashK * 0.15f);
             yield return null;
         }
 
+        transform.position = edgeWorld;
+
         if (board.TryDig(dirtCell.x, dirtCell.y))
             session.OnDug(digWorld);
 
         ResetVisualImmediate();
-        stepping = false;
-    }
-
-    static int WalkFrameFromProgress(float progress)
-    {
-        return Mathf.Clamp(Mathf.FloorToInt(progress * 4f), 0, 3);
+        if (!chainingSteps)
+            stepping = false;
     }
 
     IEnumerator SettleVisual()
@@ -596,7 +655,7 @@ public class PlayerGridMotor : MonoBehaviour
         return frames != null && frames.Length >= 4;
     }
 
-    void ApplyWalkVisuals(int frame, bool moving, float bobMultiplier, float settleBlend = 0f, float stepProgress = -1f)
+    void ApplyWalkVisuals(int frame, bool moving, float bobMultiplier, float settleBlend = 0f)
     {
         walkFrameIndex = frame;
         var hasFrames = HasWalkFrames(facing);
@@ -608,38 +667,37 @@ public class PlayerGridMotor : MonoBehaviour
         if (visual == null)
             return;
 
-        // Two step bobs per tile traversal (nadir on foot plant frame 0 and frame 2)
-        var stridePhase = stepProgress >= 0f
-            ? stepProgress * Mathf.PI * 4f
-            : (frame + 0.5f) / 4f * Mathf.PI * 4f;
+        var strideAngle = moving ? stridePhaseRadians : 0f;
 
-        // Vertical step bounce with exact nadirs (0) on foot-plant frames 0 and 2
-        var bob = moving ? 0.5f * (1f - Mathf.Cos(stridePhase)) * walkBobAmplitude * bobMultiplier : 0f;
+        // GIF reference: walkBob = abs(sin(strideAngle)) — continuous phase across chained steps.
+        var bob = moving ? Mathf.Abs(Mathf.Sin(strideAngle)) * walkBobAmplitude * bobMultiplier : 0f;
         var strideSkewX = 0f;
         var targetLean = 0f;
 
         if (moving)
         {
+            var swing = Mathf.Sin(strideAngle);
             if (facing.x != 0)
             {
-                strideSkewX = Mathf.Sin(stridePhase * 0.5f) * strideSkew * facing.x;
-                targetLean = -facing.x * leanAngle;
+                strideSkewX = swing * strideSkew * facing.x;
+                if (!hasFrames)
+                    targetLean = -facing.x * leanAngle;
             }
             else
             {
-                strideSkewX = Mathf.Sin(stridePhase * 0.5f) * (strideSkew * 0.6f);
+                strideSkewX = swing * (strideSkew * 0.6f);
             }
         }
 
         // Procedural two-part limb/stride oscillation fallback if sprite sheets are not assigned
         if (!hasFrames && moving)
         {
-            var stepCyclePhase = stepProgress >= 0f ? stepProgress : (frame / 4f);
+            var stepCyclePhase = (stridePhaseRadians / (Mathf.PI * 2f)) % 1f;
             var stepHalf = Mathf.FloorToInt(stepCyclePhase * 2f) % 2;
             var altSign = stepHalf == 0 ? 1f : -1f;
 
             targetLean += altSign * 5.5f;
-            bob += Mathf.Abs(Mathf.Sin(stridePhase)) * (walkBobAmplitude * 0.8f);
+            bob += Mathf.Abs(Mathf.Sin(strideAngle)) * (walkBobAmplitude * 0.8f);
             strideSkewX += altSign * (strideSkew * 1.2f);
         }
 

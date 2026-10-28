@@ -57,7 +57,7 @@ When adding an asset: add the entry in both files, add it to `docs/GAMEPLAY_ASSE
 - **Interaction hints:** `InteractionHintOverlay` shows one contextual arrow (dig-adjacent dirt, or pushable boulder) until the player digs; raycasts off.
 - Reference mockups for Level 2 may show every mechanic at once; shipping levels follow PRD hints one at a time.
 - Characters use feet pivots. The player visual sits at local y −0.42 with scale 0.52, so the boots are near the bottom of the cell.
-- **PlayerGridMotor:** root transform = grid cell; child **Visual** gets bob, lean, squash, and idle breathe. Step timing 0.18 s/tile (0.36 s when pushing boulders); dig 0.12 s lunge (halt at tile edge, lean, shovel arc); push 0.12 s brace. Code-driven 4-frame walk arrays per direction plus 0.05 s down-facing pivot on horizontal reversal. Optional `Animator` on Visual exposes `MoveX`, `MoveY`, `IsMoving`, `IsDigging`, `IsPushing` (no controller required).
+- **PlayerGridMotor:** motion reference `diamond_rush_gif_maker.html` / `explorer_4dir_10s_white_bg.gif` — linear root lerp per cell; **continuous** stride phase at `strideCyclesPerSecond` (2 Hz = 5 strides / 2.5 s); bob `abs(sin(phase))`; one coroutine chains steps while input held; horizontal pivot only from idle. Sprites unchanged. Step 0.18 s/tile, `walkSpeedScale` 1.
 - **GameplayFeedback / GameplayFxParticles:** foot dust and dig debris use runtime `ParticleSystem` bursts (warm-gray specs 0.04–0.08, sort order 9). Do not fall back to `GameplaySprites.SoftCircle` for footsteps — it reads as a giant white puff. Gem pickup animates the **Gem** child only (hide glow); fly to `GameplayHudController.RequiredChipScreenPoint` then `PunchRequired`.
 
 ## 4. Level layouts

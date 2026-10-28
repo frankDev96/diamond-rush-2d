@@ -10,7 +10,7 @@ public static class GameplayLevel1Builder
 {
     const string ScenePath = "Assets/Scenes/GameplayLevel1.unity";
     const string LayoutPref = "DiamondRush.GameplayLevel1LayoutVersion";
-    const int LayoutVersion = 8;
+    const int LayoutVersion = 9;
     const string Home = MenuUiFactory.ArtFolder;
     const string Map = MenuUiFactory.MapArtFolder;
     const string Angkor = GameplayArtImporter.OutputFolder;
@@ -276,7 +276,7 @@ public static class GameplayLevel1Builder
         SetSprites(so, "walkUp", walkUp);
         SetSprites(so, "walkSide", GameplayArtImporter.LoadFrames("explorer_walk_side"));
         so.FindProperty("stepDuration").floatValue = 0.18f;
-        so.FindProperty("walkSpeedScale").floatValue = 0.5f;
+        so.FindProperty("walkSpeedScale").floatValue = 1f;
         so.ApplyModifiedPropertiesWithoutUndo();
         return motor;
     }

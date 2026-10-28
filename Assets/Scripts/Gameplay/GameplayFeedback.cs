@@ -161,8 +161,15 @@ public class GameplayFeedback : MonoBehaviour
         }
 
         var flyTransform = gemRenderer != null ? gemRenderer.transform : gemRoot.transform;
-        var startScale = flyTransform.localScale;
         var startPos = flyTransform.position;
+        const float pickupWorldWidth = 0.36f;
+        if (gemRenderer != null && gemRenderer.sprite != null)
+        {
+            var fit = pickupWorldWidth / gemRenderer.sprite.bounds.size.x;
+            flyTransform.localScale = new Vector3(fit, fit, 1f);
+        }
+
+        var startScale = flyTransform.localScale;
 
         // 1. Quick star-sparkle burst at pickup location
         GameplayFxParticles.EmitBurst(gemSparkle, startPos, Random.Range(8, 12));
