@@ -22,6 +22,13 @@ public class WorldSelectController : MonoBehaviour
         "THE INNER COURT"
     };
 
+    static readonly Color ClearedTint = Color.white;
+    static readonly Color CurrentTint = Color.white;
+    static readonly Color LockedTint = new Color(0.72f, 0.72f, 0.72f, 1f);
+    static readonly Color SelectedTint = new Color(1f, 0.94f, 0.72f, 1f);
+    const float SelectedScale = 1.08f;
+    const float NormalScale = 1f;
+
     [SerializeField] AudioClip angkorMusic;
     [SerializeField] Image[] worldImages;
     [SerializeField] Sprite worldActive;
@@ -39,7 +46,7 @@ public class WorldSelectController : MonoBehaviour
     [SerializeField] GameObject toastRoot;
     [SerializeField] TMP_Text toastLabel;
 
-    int selectedLevel = 2;
+    int selectedLevel = 1;
     Coroutine toastRoutine;
 
     void Awake()
@@ -72,27 +79,44 @@ public class WorldSelectController : MonoBehaviour
 
     public void SelectLevel(int level)
     {
-        var current = CurrentLevel();
-        if (level > current)
+        var progress = ProgressLevel();
+        if (level > progress)
         {
             ShowToast("Level locked.");
             return;
         }
 
+        // Cleared and current levels stay playable; never lock a completed stage.
         selectedLevel = level;
+        RefreshNodes();
         RefreshPreview();
     }
 
     public void OnPlay()
     {
-        if (selectedLevel < 1 || selectedLevel > 9)
+        var progress = ProgressLevel();
+        if (selectedLevel < 1 || selectedLevel > progress)
+        {
+            ShowToast("Level locked.");
+            return;
+        }
+
+        if (selectedLevel > 9)
         {
             ShowToast("Level " + selectedLevel + " is coming soon.");
             return;
         }
 
+        var sceneName = SceneForLevel(selectedLevel);
+        var buildPath = "Assets/Scenes/" + sceneName + ".unity";
+        if (SceneUtility.GetBuildIndexByScenePath(buildPath) < 0)
+        {
+            ShowToast("Level " + selectedLevel + " scene missing. Rebuild in Unity.");
+            return;
+        }
+
         LevelLaunchContext.Set(0, selectedLevel);
-        SceneManager.LoadScene(SceneForLevel(selectedLevel));
+        SceneManager.LoadScene(sceneName);
     }
 
     static string SceneForLevel(int level)
@@ -123,36 +147,11 @@ public class WorldSelectController : MonoBehaviour
             }
         }
 
-        var current = CurrentLevel();
-        if (nodeImages != null)
-        {
-            for (var i = 0; i < nodeImages.Length; i++)
-            {
-                var level = i + 1;
-                if (nodeImages[i] != null)
-                {
-                    if (level < current)
-                        nodeImages[i].sprite = nodeCleared;
-                    else if (level == current)
-                        nodeImages[i].sprite = nodeCurrent;
-                    else
-                        nodeImages[i].sprite = nodeLocked;
-                }
+        var progress = ProgressLevel();
+        if (selectedLevel < 1 || selectedLevel > progress)
+            selectedLevel = progress;
 
-                if (nodeLabels != null && i < nodeLabels.Length && nodeLabels[i] != null)
-                    nodeLabels[i].text = "LEVEL\n" + level;
-
-                if (nodeNotes != null && i < nodeNotes.Length && nodeNotes[i] != null)
-                {
-                    if (level < current)
-                        nodeNotes[i].text = "CLEARED\n3/3";
-                    else if (level == current)
-                        nodeNotes[i].text = "NEW";
-                    else
-                        nodeNotes[i].text = string.Empty;
-                }
-            }
-        }
+        RefreshNodes();
 
         if (gemLabel != null)
             gemLabel.text = "18";
@@ -160,18 +159,75 @@ public class WorldSelectController : MonoBehaviour
         RefreshPreview();
     }
 
+    void RefreshNodes()
+    {
+        var progress = ProgressLevel();
+        if (nodeImages == null)
+            return;
+
+        for (var i = 0; i < nodeImages.Length; i++)
+        {
+            var level = i + 1;
+            var selected = level == selectedLevel;
+            var image = nodeImages[i];
+
+            if (image != null)
+            {
+                if (level < progress)
+                    image.sprite = selected ? nodeCurrent : nodeCleared;
+                else if (level == progress)
+                    image.sprite = nodeCurrent;
+                else
+                    image.sprite = nodeLocked;
+
+                image.color = level > progress
+                    ? LockedTint
+                    : selected
+                        ? SelectedTint
+                        : level == progress
+                            ? CurrentTint
+                            : ClearedTint;
+
+                image.rectTransform.localScale = Vector3.one * (selected && level <= progress ? SelectedScale : NormalScale);
+            }
+
+            if (nodeLabels != null && i < nodeLabels.Length && nodeLabels[i] != null)
+                nodeLabels[i].text = "LEVEL\n" + level;
+
+            if (nodeNotes != null && i < nodeNotes.Length && nodeNotes[i] != null)
+            {
+                if (level < progress)
+                    nodeNotes[i].text = selected ? "CLEARED\nSELECTED" : "CLEARED";
+                else if (level == progress)
+                    nodeNotes[i].text = selected ? "CURRENT\nSELECTED" : "CURRENT";
+                else
+                    nodeNotes[i].text = string.Empty;
+            }
+        }
+    }
+
     void RefreshPreview()
     {
-        var name = LevelNames[Mathf.Clamp(selectedLevel - 1, 0, LevelNames.Length - 1)];
+        var spec = GameplayLevelCatalog.Get(selectedLevel);
+        var name = !string.IsNullOrEmpty(spec.StageName)
+            ? spec.StageName
+            : LevelNames[Mathf.Clamp(selectedLevel - 1, 0, LevelNames.Length - 1)];
+
         if (previewTitle != null)
             previewTitle.text = "LEVEL " + selectedLevel + ": \"" + name + "\"";
         if (previewTarget != null)
-            previewTarget.text = "Target:  4";
+            previewTarget.text = "Target:  " + spec.RequiredReds;
         if (previewReward != null)
-            previewReward.text = "Rewards:  18";
+            previewReward.text = "Rewards:  " + PurpleRewardFor(spec);
     }
 
-    int CurrentLevel()
+    static int PurpleRewardFor(GameplayLevelSpec spec)
+    {
+        // Simple wallet tease until store economy is wired: base + extras.
+        return 8 + Mathf.Max(0, spec.ExtraReds) * 4 + Mathf.Max(0, spec.RequiredReds) * 2;
+    }
+
+    int ProgressLevel()
     {
         var slot = ProfileSave.Active;
         if (slot == null || !slot.occupied)

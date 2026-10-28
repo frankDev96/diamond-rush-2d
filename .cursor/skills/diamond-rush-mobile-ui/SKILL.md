@@ -46,7 +46,8 @@ Read and follow this skill before changing any player-facing UI, scene layout, m
 - Same 16:9 canvas. Back top-left, HUD top-right, world list left, parchment map right.
 - Worlds: Angkor Wat unlocked; Bavaria, Tibet, Giza, Thiruvithamkoor locked. Locked taps toast "World locked."
 - Angkor map: 12 stage nodes. Cleared / current / locked from the active profile level. PLAY is the only primary action.
-- PLAY and locked nodes toast until a digging level exists.
+- Cleared levels stay playable forever (never re-lock). Selected node gets a glow/scale cue; progress CURRENT uses `nodeCurrent`; locked taps toast "Level locked."
+- PLAY to Level N needs `Assets/Scenes/GameplayLevelN.unity` in Editor Build Settings. If the scene is missing, LoadScene fails; `GameplayLevelsBuilder` must succeed validation first (row width must match `Width`). Runtime board still comes from `GameplayLevelCatalog` via `BuildFromSpec`.
 - Play `ankor-wat-bgm.wav` while this screen is open. Restore `The_Gilded_Labyrinth.wav` on Home. One `MenuMusicPlayer` only.
 
 ## Gameplay screen layout

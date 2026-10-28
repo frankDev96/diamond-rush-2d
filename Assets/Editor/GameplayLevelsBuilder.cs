@@ -4,7 +4,8 @@ using UnityEditor;
 [InitializeOnLoad]
 public static class GameplayLevelsBuilder
 {
-    const int LayoutVersion = 17;
+    // Bump when Level 2-9 rows / scene wiring change. Missing scenes always rebuild.
+    const int LayoutVersion = 19;
 
     static GameplayLevelsBuilder()
     {
@@ -13,8 +14,20 @@ public static class GameplayLevelsBuilder
 
     static void AutoBuild()
     {
-        if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating)
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
             return;
+
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+        {
+            EditorApplication.delayCall += AutoBuild;
+            return;
+        }
+
+        if (!MenuUiFactory.TryReadyFont())
+        {
+            MenuUiFactory.QueueTmpImport(AutoBuild);
+            return;
+        }
 
         for (var level = 2; level <= 9; level++)
             BuildIfStale(level);
@@ -32,9 +45,12 @@ public static class GameplayLevelsBuilder
         var spec = GameplayLevelCatalog.Get(level);
         var scenePath = "Assets/Scenes/GameplayLevel" + level + ".unity";
         var pref = "DiamondRush.GameplayLevel" + level + "LayoutVersion";
-        if (!force && File.Exists(scenePath) && EditorPrefs.GetInt(pref, 0) == LayoutVersion)
+        var missing = !File.Exists(scenePath);
+        if (!force && !missing && EditorPrefs.GetInt(pref, 0) == LayoutVersion)
             return;
 
+        UnityEngine.Debug.Log("Diamond Rush building gameplay level " + level +
+                              (missing ? " (scene missing)" : " (layout stale)") + "…");
         GameplayLevel1Builder.BuildSceneForSpec(spec, scenePath, pref, LayoutVersion);
     }
 }

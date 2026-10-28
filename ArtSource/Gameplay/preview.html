@@ -13,9 +13,9 @@
 <div id="wrap" style="position:relative;overflow:hidden"><div id="stage"></div></div>
 <script>
 // Layout preview mirroring GridBoard + GameplayCameraFit + GameplayLevel1Builder (v4).
-// ?view=follow|overview  &w=&h=  &px=&py= (player cell, top-origin)  &frame=0..3  &unlocked=1
+// ?level=1|2  &view=follow|overview  &w=&h=  &px=&py= (player cell, top-origin)  &frame=0..3  &unlocked=1
 const A = '/Assets/Art/Gameplay/Angkor/', MAP = '/Assets/Art/Map/';
-const rows = [
+const level1Rows = [
   "############################################EE##",
   "#############################rd#############...#",
   "#############################dd########..###...#",
@@ -36,7 +36,32 @@ const rows = [
   "#.P...##############.........dd....#######.....#",
   "#.....##########################################",
   "################################################"];
+const level2Rows = [
+  "###############EE#################",
+  "############...........###########",
+  "############..ddd......####......#",
+  "#..........#..drd.ddd..####..ddd.#",
+  "#.....B.......ddd.drd..####..drd.#",
+  "#...B.............ddd....##..ddd.#",
+  "#.dd...B...#.............##......#",
+  "#.dd.......#.............##......#",
+  "#..........######..###..........##",
+  "#dd..############..###.....t...###",
+  "#dddd############..###..T......###",
+  "#rddd#########..............g..###",
+  "###..#########.......B.........###",
+  "###..#########..B........#########",
+  "#.................B......#########",
+  "#.P...................B..#########",
+  "#.......######...........#########",
+  "##################################"];
 const params = new URLSearchParams(location.search);
+const level = +(params.get('level') || 1);
+const rows = level === 2 ? level2Rows : level1Rows;
+const stageTitle = level === 2 ? 'THE COURTYARD' : 'THE GATES';
+const stageHint = level === 2 ? 'Push Boulders!' : 'Move to Dig!';
+const requiredLabel = level === 2 ? '0/2' : '0/3';
+const extraLabel = level === 2 ? '0/2' : '0/2';
 const W = +(params.get('w') || 1920), H = +(params.get('h') || 1080);
 const view = params.get('view') || 'follow';
 const frame = +(params.get('frame') || 1);
@@ -125,6 +150,12 @@ for (let r = 0; r < gh; r++) for (let c = 0; c < gw; c++) {
     box(x + ppu / 2 - gl / 2, y + ppu / 2 - gl / 2, gl, gl, 60, { background: 'radial-gradient(circle, rgba(255,64,77,0.35) 0%, rgba(255,64,77,0) 70%)' });
     img(A + 'red_diamond.png', x + ppu / 2 - g / 2, y + ppu / 2 - g * 119 / 128 / 2, g, null, 70);
   }
+  if (ch === 'g') {
+    const gsz = 0.7 * ppu;
+    img(A + 'purple_diamond.png', x + ppu / 2 - gsz / 2, y + ppu / 2 - gsz / 2, gsz, gsz, 70);
+  }
+  if (ch === 'B') img(A + 'boulder_face.png', x + ppu * 0.04, y + ppu * 0.04, ppu * 0.92, ppu * 0.92, 35);
+  if (ch === 'T' || ch === 't') img(A + (ch === 't' ? 'chest_secret.png' : 'chest_wood.png'), x + ppu * 0.1, y + ppu * 0.1, ppu * 0.8, ppu * 0.8, 35);
 }
 
 // player: 160x256 frame at 128 PPU, scale 0.52, feet pivot 0.04, feet 0.42 cells below centre
@@ -182,9 +213,9 @@ if (unlocked && door) {
 // HUD in reference units (scaled by ui)
 const u = v => v * ui;
 box(u(24), u(16), u(680), u(104), 200, { borderStyle: 'solid', borderWidth: u(14) + 'px', borderImage: `url(${MAP}hud_chip.png) 14 fill stretch`, boxSizing: 'border-box', opacity: 0.94 });
-text('WORLD 1: ANGKOR WAT - LEVEL 1', u(56), u(28), u(20), '#fff7e6', 201);
-text('THE GATES', u(56), u(60), u(36), '#ffe68c', 201);
-const chips = [['icon_red.png', '0/3', 1], ['icon_red.png', '0/2', 0.55], ['icon_purple.png', '0', 1], ['icon_lives_head.png', 'x3', 1]];
+text('WORLD 1: ANGKOR WAT - LEVEL ' + level, u(56), u(28), u(20), '#fff7e6', 201);
+text(stageTitle, u(56), u(60), u(36), '#ffe68c', 201);
+const chips = [['icon_red.png', requiredLabel, 1], ['icon_red.png', extraLabel, 0.55], ['icon_purple.png', '0', 1], ['icon_lives_head.png', 'x3', 1]];
 const offs = [-570, -380, -190, 0];
 chips.forEach(([icon, v, a], i) => {
   const rx = W - u(24) + u(offs[i]), x = rx - u(172), y = u(18) + u(4);
@@ -201,7 +232,7 @@ text('DRAG JOYSTICK', u(140), H - u(62), u(18), '#ffe68c', 202, 'center');
 text('TO MOVE!', u(140), H - u(40), u(18), '#ffe68c', 202, 'center');
 if (view === 'follow' && !unlocked) {
   box(W / 2 - u(240), H - u(84) - u(38), u(480), u(76), 210, { background: 'rgba(20,15,10,0.82)' });
-  text('Move to Dig!', W / 2, H - u(84), u(40), '#ffe68c', 211, 'center');
+  text(stageHint, W / 2, H - u(84), u(40), '#ffe68c', 211, 'center');
 }
 </script>
 </body>
