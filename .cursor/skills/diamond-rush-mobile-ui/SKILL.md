@@ -94,3 +94,4 @@ Capture new valid criticism here as short bullets (see `.cursor/rules/capture-fe
 - Gameplay title banner must use `title_banner.png` (wide stone plate), never stretch `hud_chip`. If `hud_chip` source is a World Select screenshot, reprocess from a real chip plaque — it shows as map nodes behind THE GATES.
 - Soft grass: hand-reach lean mid-step + `grass_rustle` SFX, then part. Freeze `BushSway` before clear; no camera shake on grass (shake reads as flicker).
 - Up walk sheets must be generated from the down frames’ leg poses (contact/passing pairs). A weak up sheet makes “down looks fine, up looks stuck.”
+- Level 2 overview mockups are style reference only. Generate one PRD-valid sprite at a time. Do not invent potions, energy cans, blue gems, grappling hook, or focus/vitality bars from the mockup. When prompting wall caps, say “ONLY one-cell square cap, no room/map/creatures” — otherwise GenerateImage may bake a mini dungeon into `wall_top`.

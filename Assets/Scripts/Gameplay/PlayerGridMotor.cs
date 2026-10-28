@@ -21,11 +21,11 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] Sprite[] walkSide;
 
     [Header("Grid timing")]
-    [SerializeField] float stepDuration = 0.18f;
+    [SerializeField] float stepDuration = 0.22f;
     [Tooltip("1 = design speed. Applied to grid step time.")]
-    [SerializeField] float walkSpeedScale = 1f;
+    [SerializeField] float walkSpeedScale = 0.85f;
     [Tooltip("Fallback Hz when not mid-step. During a grid step, legs lock to one full cycle per cell so feet match the floor.")]
-    [SerializeField] float strideCyclesPerSecond = 2f;
+    [SerializeField] float strideCyclesPerSecond = 2.2f;
     [Tooltip("How many walk cycles complete across one cell step (1 = one full stride per tile).")]
     [SerializeField] float strideCyclesPerStep = 1f;
     [SerializeField] float deadZone = 0.3f;
@@ -38,15 +38,16 @@ public class PlayerGridMotor : MonoBehaviour
     [SerializeField] float settleDuration = 0.02f;
 
     [Header("Visual walk feel")]
-    [SerializeField] float walkBobAmplitude = 0.036f;
-    [SerializeField] float strideSkew = 0.018f;
-    [SerializeField] float leanAngle = 5.5f;
+    [SerializeField] float walkBobAmplitude = 0.07f;
+    [SerializeField] float strideSkew = 0.024f;
+    [SerializeField] float leanAngle = 6.5f;
     [SerializeField] float leanSmooth = 16f;
-    [SerializeField] float pivotSquashDuration = 0.08f;
-    [SerializeField] Vector2 pivotSquashScale = new Vector2(1.07f, 0.93f);
-    [SerializeField] float breatheSpeed = 2.2f;
-    [SerializeField] float breatheAmount = 0.012f;
-    [SerializeField] float horizontalPivotSeconds = 0.05f;
+    [SerializeField] float pivotSquashDuration = 0.07f;
+    [SerializeField] Vector2 pivotSquashScale = new Vector2(1.08f, 0.92f);
+    [SerializeField] float contactPlantScale = 1.04f;
+    [SerializeField] float breatheSpeed = 2.0f;
+    [SerializeField] float breatheAmount = 0.01f;
+    [SerializeField] float horizontalPivotSeconds = 0.04f;
 
     [Header("Interaction timing")]
     [SerializeField] float pushBraceDelay = 0.12f;
@@ -78,6 +79,9 @@ public class PlayerGridMotor : MonoBehaviour
     float cornerSlideVisual;
     Vector2Int cornerSlideDir;
     float stridePhaseRadians;
+    float wallIgnoreUntil;
+    Vector2Int wallIgnoreDir;
+    float grassReach;
 
     public Vector2Int GridPosition => gridPos;
     public Vector2 FacingVector => new Vector2(facing.x, facing.y);
@@ -153,8 +157,18 @@ public class PlayerGridMotor : MonoBehaviour
             return;
 
         var direction = ReadDirection();
-        if (direction != Vector2Int.zero)
-            StartCoroutine(TryStepRoutine(direction, session));
+        if (direction == Vector2Int.zero)
+            return;
+
+        // Held into a stone wall: stay put — no bounce spam / visual flicker.
+        if (Time.time < wallIgnoreUntil && direction == wallIgnoreDir && IsStoneClip(direction))
+        {
+            Face(direction);
+            ShowIdlePose();
+            return;
+        }
+
+        StartCoroutine(TryStepRoutine(direction, session));
     }
 
     void UpdateCornerSlideVisual()
@@ -418,27 +432,14 @@ public class PlayerGridMotor : MonoBehaviour
 
     IEnumerator WallContactRoutine(Vector2Int direction)
     {
-        if (!chainingSteps)
-            stepping = true;
-        TriggerPivotSquash();
-        var t = 0f;
-        const float duration = 0.07f;
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            var k = Mathf.Sin(Mathf.Clamp01(t / duration) * Mathf.PI);
-            if (visual != null)
-            {
-                var push = new Vector3(direction.x, direction.y, 0f) * (0.04f * k);
-                visual.localPosition = visualBaseLocalPosition + push;
-            }
-
-            yield return null;
-        }
-
+        // Hard stop: face the wall and ignore that input briefly. No bounce/squash flicker.
+        Face(direction);
+        ShowIdlePose();
         ResetVisualImmediate();
-        if (!chainingSteps)
-            stepping = false;
+        PushAnimatorState(false, false, false);
+        wallIgnoreDir = direction;
+        wallIgnoreUntil = Time.time + 0.2f;
+        yield break;
     }
 
     IEnumerator PushStepTo(Vector2Int target, Vector2Int direction, GameplaySessionController session)
@@ -493,20 +494,20 @@ public class PlayerGridMotor : MonoBehaviour
         var from = transform.position;
         var to = board.CellToWorld(target.x, target.y);
 
-        // Bump into soft grass → rustle, clear, keep walking (no dig halt).
+        // Soft grass: part by hand mid-step (rustle + SFX), then clear — no dig halt.
+        var push = (Vector2)(to - from);
+        var grassCleared = false;
         if (isBush)
         {
-            var push = (Vector2)(to - from);
             board.BeginDirtCrack(target.x, target.y, push);
-            if (board.TryDig(target.x, target.y, push))
-                session.OnDug(to);
-            entering = GridCell.Floor;
-            PushAnimatorState(true, false, pushing);
+            GameSfx.Instance?.PlayGrassRustle();
+            PushAnimatorState(true, true, pushing);
         }
 
         var strideStart = stridePhaseRadians;
         var cycles = Mathf.Max(0.25f, strideCyclesPerStep) * (pushing ? 0.85f : 1f);
         lastPlantedFrame = -1;
+        grassReach = 0f;
 
         var t = 0f;
         while (t < duration)
@@ -517,6 +518,22 @@ public class PlayerGridMotor : MonoBehaviour
             var eased = fromIdle ? easeInFromRest.Evaluate(k) : easeChain.Evaluate(k);
             transform.position = Vector3.Lerp(from, to, eased);
 
+            // Reach into the grass with the hands/body, then clear mid-step.
+            if (isBush)
+                grassReach = Mathf.Sin(Mathf.Clamp01(k / 0.5f) * Mathf.PI) * 0.055f;
+            else
+                grassReach = 0f;
+
+            if (isBush && !grassCleared && k >= 0.38f)
+            {
+                grassCleared = true;
+                grassReach = 0f;
+                if (board.TryDig(target.x, target.y, push))
+                    session.OnGrassParted(to);
+                entering = GridCell.Floor;
+                PushAnimatorState(true, false, pushing);
+            }
+
             // Lock legs to floor travel: one stride cycle maps across the eased cell step.
             stridePhaseRadians = strideStart + eased * cycles * Mathf.PI * 2f;
             var frame = WalkFrameFromStride();
@@ -524,6 +541,14 @@ public class PlayerGridMotor : MonoBehaviour
             TryFootPlant(session, frame);
 
             yield return null;
+        }
+
+        grassReach = 0f;
+        if (isBush && !grassCleared)
+        {
+            if (board.TryDig(target.x, target.y, push))
+                session.OnGrassParted(to);
+            entering = GridCell.Floor;
         }
 
         transform.position = to;
@@ -602,23 +627,26 @@ public class PlayerGridMotor : MonoBehaviour
 
         var strideAngle = moving ? stridePhaseRadians : 0f;
 
-        // GIF reference: walkBob = abs(sin(strideAngle)) — continuous phase across chained steps.
+        // Contact→flight→contact bob locked to stride phase (prompt-style abs(sin) bounce).
         var bob = moving ? Mathf.Abs(Mathf.Sin(strideAngle)) * walkBobAmplitude * bobMultiplier : 0f;
         var strideSkewX = 0f;
         var targetLean = 0f;
+        var plant = 0f;
 
         if (moving)
         {
             var swing = Mathf.Sin(strideAngle);
+            // Contact frames (0/2) plant slightly; passing frames lift.
+            plant = Mathf.Clamp01(1f - Mathf.Abs(swing)) * 0.55f;
             if (facing.x != 0)
             {
                 strideSkewX = swing * strideSkew * facing.x;
-                if (!hasFrames)
-                    targetLean = -facing.x * leanAngle;
+                targetLean = -facing.x * leanAngle * 0.45f;
             }
             else
             {
-                strideSkewX = swing * (strideSkew * 0.6f);
+                strideSkewX = swing * (strideSkew * 0.55f);
+                targetLean = swing * leanAngle * 0.2f;
             }
         }
 
@@ -648,10 +676,23 @@ public class PlayerGridMotor : MonoBehaviour
                 1f);
             squashTimer = Mathf.Max(0f, squashTimer - Time.deltaTime);
         }
+        else if (moving && plant > 0.01f)
+        {
+            squash = new Vector3(
+                Mathf.Lerp(1f, contactPlantScale, plant),
+                Mathf.Lerp(1f, 2f - contactPlantScale, plant),
+                1f);
+        }
 
-        visual.localPosition = visualBaseLocalPosition + Vector3.up * bob + Vector3.right * strideSkewX;
+        var reach = new Vector3(facing.x, facing.y, 0f) * grassReach;
+        visual.localPosition = visualBaseLocalPosition + Vector3.up * bob + Vector3.right * strideSkewX + reach;
         visual.localScale = Vector3.Scale(visualBaseLocalScale, squash);
-        visual.localRotation = Quaternion.Euler(0f, 0f, lean);
+        visual.localRotation = Quaternion.Euler(0f, 0f, lean + facing.x * -6f * (grassReach / 0.055f));
+
+        // Keep explorer above floors/walls. Dynamic -y sort went negative on the
+        // north side of the board and buried the player under FloorOrder 0.
+        if (spriteRenderer != null)
+            spriteRenderer.sortingOrder = 10;
 
         ApplyShadowFromBob(moving ? Mathf.Max(0f, bob) : 0f);
 

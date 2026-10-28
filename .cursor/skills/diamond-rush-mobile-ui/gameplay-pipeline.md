@@ -19,13 +19,14 @@ Procedures used to build Angkor Level 1 (tunnel maze, follow camera, walk cycle)
 
 - Modeled world sprites (explorer, face boulder, wall caps, diamonds, snakes) are rendered from Blender. Read [`.agents/skills/diamond-rush-blender/SKILL.md`](../../../.agents/skills/diamond-rush-blender/SKILL.md) and the oblique skills it links (view, objects, assets, level art). Render into `Assets/Art/Gameplay/Angkor/` using the stems in `docs/GAMEPLAY_ASSETS.md`. The red diamond prompt is in `.agents/skills/oblique-game-objects/prompts.md`. HUD, buttons, and vignettes stay on the GenerateImage path below.
 - Generate with the `GenerateImage` tool on flat **#FF00FF magenta** (use #00FF00 green when the asset contains purple). Ask for **painterly semi-realistic** style: soft lighting, material texture (stone grain, fabric, scales, gem refraction), **no thick cartoon outlines**, **no flat cel/vector look**. Match World Select map art (`Assets/Art/Map/`). Oblique top-down hybrid (walls show a front face, characters stand upright). After processing, visually audit PNGs for leftover magenta and cartoon outlines before shipping.
-- Save sources as `ArtSource/Gameplay/Angkor/<name>.jpg`. Processed PNGs go to `Assets/Art/Gameplay/Angkor/`.
+- Save sources as `ArtSource/Gameplay/Angkor/<name>.jpg` (whole `Angkor/` folder is gitignored; local-only). Processed PNGs go to `Assets/Art/Gameplay/Angkor/` (tracked).
 - World 1 tiles: `angkor_floor_tile.png` → floors; `angkor_wall_top_view.jpg` → walls/fill. Oblique hybrid: tunnel walls are **one-cell top caps** (`wall_block` / `wall_top`), not tall front faces.
 - **Animation sheets**: one 1024x1024 image, 2x2 grid, one direction per sheet (down, up, side facing right; left = side mirrored). Frame order TL, TR, BL, BR = contact, passing, contact, passing. Name the poses explicitly in the prompt ("wide stride", "upright passing pose") or every frame comes out mid-stride; regenerate if so.
 - **Trap:** if `explorer_walk_down_0`, `_up_0`, and `_side_0` share the same file hash, facings were duplicated — regenerate all three sheets before blaming the motor. Verify with sha1 before shipping.
 - Tileable textures: ask for "seamless, tileable, no border". If a dark border appears, use `inset`; if it doesn't tile, use `seamless`.
 - Screen frames (vignettes) have content in the corners, so the corner pixel is not the background. Use `KeyCenter`.
 - After processing, **read every output PNG** to check the keying, the trim, and that the poses differ.
+- Level overview mockups (`ankor_wat_level_*_ref.jpg`) are style reference only (PRD) — not process_art inputs; keep them gitignored like `ankor_wat_level_1_ref.jpg` / `_2_ref.jpg`. Generate one PRD-valid sprite at a time; skip potions, cans, blue gems, grappling hook, focus bars. Wall-cap prompts must say “ONLY one-cell square cap, no room/map/creatures” or GenerateImage may bake a mini dungeon into `wall_top`.
 
 ## 2. Processing
 
